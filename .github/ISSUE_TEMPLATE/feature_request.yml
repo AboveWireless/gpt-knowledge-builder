@@ -1,0 +1,35 @@
+﻿name: Feature request
+description: Suggest an improvement to the product or workflow.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What user problem does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Primary audience
+      options:
+        - Non-technical desktop user
+        - Power user
+        - Developer / integrator
+        - Mixed audience
+    validations:
+      required: true
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Tradeoffs or constraints
+      description: Optional. Include file type, privacy, packaging, or platform constraints.

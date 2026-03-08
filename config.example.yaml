@@ -1,0 +1,6 @@
+# Legacy placeholder.
+#
+# The primary runtime path for this project is now:
+#   scan-docs --input-dir ... --output-dir ... --pack-name ...
+#
+# This file is intentionally not used by the default GPT Knowledge compiler.
