@@ -1,5 +1,9 @@
 ﻿# GPT Knowledge Builder
 
+[![CI](https://github.com/AboveWireless/gpt-knowledge-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/AboveWireless/gpt-knowledge-builder/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/AboveWireless/gpt-knowledge-builder?display_name=tag)](https://github.com/AboveWireless/gpt-knowledge-builder/releases)
+[![License](https://img.shields.io/github/license/AboveWireless/gpt-knowledge-builder)](https://github.com/AboveWireless/gpt-knowledge-builder/blob/main/LICENSE)
+
 Local-first Windows desktop app for turning document corpora into upload-ready Custom GPT knowledge packages.
 
 ![GPT Knowledge Builder banner](docs/images/hero-banner.svg)
@@ -15,21 +19,34 @@ The public product posture is:
 - local-first by default
 - optional AI enrichment only when explicitly enabled
 
+## Why this exists
+
+Most people building Custom GPTs either upload raw documents directly or spend hours hand-curating files and names. This app turns that into a repeatable desktop workflow:
+
+- ingest mixed business documents from a real folder tree
+- normalize and score the corpus
+- surface duplicate, weak, OCR, and taxonomy issues for review
+- export a small set of upload-ready GPT knowledge files with traceable provenance
+
 ## Who it is for
 
 - consultants building Custom GPTs from client document sets
 - teams packaging internal SOPs, product docs, policies, and training material
 - power users who want repeatable project workspaces and deterministic exports
 
-## Product views
+## Screenshots
 
-### Workspace
+### Dashboard
 
-![Workspace preview](docs/images/workspace-preview.svg)
+![Dashboard screenshot](docs/images/github-home.png)
+
+### Review queue
+
+![Review screenshot](docs/images/github-review.png)
 
 ### Export package
 
-![Export preview](docs/images/export-preview.svg)
+![Export screenshot](docs/images/github-export.png)
 
 ## Core value
 
@@ -39,9 +56,16 @@ The public product posture is:
 - Optional OpenAI enrichment for title cleanup, taxonomy suggestion, and synthesis support
 - Windows-installable desktop build with no Python required for end users
 
+## What you get out of it
+
+- `knowledge_core` pages for high-signal GPT grounding
+- `reference_facts`, `procedures`, `glossary`, and `entities` artifacts
+- `package_index.md` and optional provenance/debug sidecars
+- a persistent workspace you can reopen instead of rescanning everything every time
+
 ## Quick start for Windows users
 
-Download the latest installer from GitHub Releases, install the app, then launch `GPT Knowledge Builder` from the Start menu.
+Download the latest installer from [GitHub Releases](https://github.com/AboveWireless/gpt-knowledge-builder/releases), install the app, then launch `GPT Knowledge Builder` from the Start menu.
 
 Typical workflow:
 
@@ -52,6 +76,17 @@ Typical workflow:
 5. Run `Export` to create the GPT upload package.
 
 The app writes a clean package plus optional provenance/debug outputs under your configured export directory.
+
+## Feature highlights
+
+| Area | What it does |
+| --- | --- |
+| Ingestion | Scans PDFs, DOCX, XLSX, CSV, TXT, Markdown, HTML, XML, JSON, and OCR-supported images |
+| Review | Flags duplicate, low-signal, OCR, and taxonomy issues before export |
+| AI | Optional OpenAI-assisted title cleanup, taxonomy suggestion, and synthesis hints |
+| Packaging | Produces a curated GPT upload pack instead of a raw text dump |
+| Traceability | Writes provenance sidecars without polluting the upload package |
+| Desktop UX | GUI-first workflow with a persistent project workspace |
 
 ## Source install for developers
 
@@ -156,6 +191,11 @@ Project exports can also write provenance sidecars such as:
 - `provenance_manifest.json`
 - split artifact pages when content grows too large
 
+This separation matters:
+
+- the GPT upload package stays small and readable
+- provenance and debug outputs remain available for audit and troubleshooting
+
 ## AI enrichment
 
 AI enrichment is optional.
@@ -239,6 +279,12 @@ scan-docs --input-dir C:\docs --output-dir C:\out --pack-name tower_library
 - If OCR results are empty, verify Tesseract is installed and callable from the command line.
 - If AI enrichment is enabled but nothing runs, verify the API key and provider settings.
 - If packaging fails, confirm Inno Setup 6 is installed or rerun the build script with `-SkipInstaller`.
+
+## Repository guides
+
+- [Windows build guide](docs/windows-build.md)
+- [Release process](docs/release-process.md)
+- [Privacy and data handling](docs/privacy-and-data-handling.md)
 
 ## Project status
 

@@ -34,6 +34,16 @@ def test_readme_positions_gui_first_release():
     assert "GUI-first workflow" in readme
     assert "Advanced CLI" in readme
     assert "scan-docs" in readme
+    assert "docs/images/github-home.png" in readme
+    assert "docs/images/github-review.png" in readme
+    assert "docs/images/github-export.png" in readme
+
+
+def test_readme_screenshot_assets_exist():
+    repo_root = Path(__file__).resolve().parents[1]
+    assert (repo_root / "docs" / "images" / "github-home.png").exists()
+    assert (repo_root / "docs" / "images" / "github-review.png").exists()
+    assert (repo_root / "docs" / "images" / "github-export.png").exists()
 
 
 def test_pyproject_has_public_release_metadata():
