@@ -583,9 +583,15 @@ class App:
         project_dir = Path(self.project_dir.get().strip())
         source_dir = Path(self.source_dir.get().strip())
         output_dir = Path(self.output_dir.get().strip())
-        if not source_dir.exists():
-            messagebox.showerror("Create Project", f"Source folder not found:\n{source_dir}")
-            return
+        for label, path in (("Project", project_dir), ("Source", source_dir), ("Output", output_dir)):
+            if path.exists() and not path.is_dir():
+                messagebox.showerror("Create Project", f"{label} path is not a folder:\n{path}")
+                return
+
+        project_dir.mkdir(parents=True, exist_ok=True)
+        source_dir.mkdir(parents=True, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
         init_project(
             project_root=project_dir,
             project_name=self.project_name.get().strip() or source_dir.name,

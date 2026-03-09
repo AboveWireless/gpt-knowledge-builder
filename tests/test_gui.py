@@ -145,6 +145,33 @@ def test_navigation_preserves_loaded_state_and_settings_persist(tmp_path: Path):
         root.destroy()
 
 
+def test_create_project_creates_missing_default_folders(tmp_path: Path, monkeypatch):
+    project_dir = tmp_path / "workspace"
+    source_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    root = _make_root()
+
+    try:
+        app = App(root)
+        app.project_dir.set(str(project_dir))
+        app.source_dir.set(str(source_dir))
+        app.output_dir.set(str(output_dir))
+        app.project_name.set("Created Project")
+        monkeypatch.setattr("knowledge_builder.gui.messagebox.showerror", lambda *args, **kwargs: pytest.fail("showerror should not be called"))
+
+        app.on_create_project()
+        root.update_idletasks()
+
+        assert project_dir.exists()
+        assert source_dir.exists()
+        assert output_dir.exists()
+        assert (project_dir / PROJECT_FILE).exists()
+        assert app.view_state.has_project is True
+        assert app.project_badge_var.get() == "Created Project"
+    finally:
+        root.destroy()
+
+
 def test_review_edit_and_open_output_actions_remain_wired(tmp_path: Path, monkeypatch):
     project_dir = _make_project(tmp_path, {"doc.txt": "Ground lug torque: 45 Nm."}, name="Action Project")
     scan_project(project_dir)
