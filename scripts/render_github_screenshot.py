@@ -8,8 +8,9 @@ from pathlib import Path
 from tkinter import Tk
 
 try:
-    from PIL import ImageGrab
+    from PIL import Image, ImageGrab
 except Exception:  # pragma: no cover - optional runtime helper
+    Image = None
     ImageGrab = None
 
 from knowledge_builder.gui import App
@@ -19,6 +20,14 @@ from knowledge_builder.project.store import PROJECT_FILE, init_project
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "docs" / "images"
+REPO_SCREENSHOT_SIZE = (1400, 850)
+REPO_SCREENSHOTS = [
+    ("github-home.png", "home", "setup"),
+    ("github-sources.png", "sources", "setup"),
+    ("github-processing.png", "processing", "processing"),
+    ("github-review.png", "review", "review"),
+    ("github-export.png", "export", "export"),
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=None, help="Save a screenshot of the rendered window to this path.")
     parser.add_argument(
         "--demo-scenario",
-        choices=["none", "starter", "review", "export"],
+        choices=["none", "starter", "setup", "processing", "review", "export"],
         default="none",
         help="Build a temporary demo workspace when a project file is not supplied.",
     )
@@ -59,8 +68,6 @@ def _write_demo_corpus(source_dir: Path, scenario: str) -> None:
             "2. Confirm lug torque.\n"
             "3. Record the result in the maintenance log.\n"
         ),
-        "duplicate-a.txt": duplicate_body,
-        "duplicate-b.txt": duplicate_body,
         "faq.md": (
             "# Grounding FAQ\n\n"
             "- What torque should be used?\n"
@@ -68,21 +75,59 @@ def _write_demo_corpus(source_dir: Path, scenario: str) -> None:
             "- Which failures should block export?\n"
         ),
     }
+    if scenario == "review":
+        docs["duplicate-a.txt"] = duplicate_body
+        docs["duplicate-b.txt"] = duplicate_body
+        docs["broken.json"] = '{"alpha": 1,,}'
+    if scenario == "export":
+        docs = {
+            "overview.txt": (
+                "Tower grounding overview\n\n"
+                "This workspace bundles clean reference material for tower grounding maintenance.\n"
+                "Teams use it to answer routine service questions and keep field procedures consistent.\n"
+            ),
+            "maintenance-notes.txt": (
+                "Maintenance notes\n\n"
+                "Field teams inspect visible grounding straps during each preventive maintenance visit.\n"
+                "Any loose hardware is documented and corrected before the site is returned to service.\n"
+            ),
+            "safety-brief.txt": (
+                "Safety brief\n\n"
+                "Disconnect site power when required by the procedure and verify the safe condition before touching conductive parts.\n"
+                "Wear insulated gloves and record each completed safety check in the maintenance log.\n"
+            ),
+            "training-summary.txt": (
+                "Training summary\n\n"
+                "New technicians review grounding basics, inspection timing, and documentation rules before they visit a live site.\n"
+                "Supervisors use the summary during onboarding and quarterly refresh sessions.\n"
+            ),
+            "service-history.txt": (
+                "Service history\n\n"
+                "Keep torque confirmations, continuity readings, and remediation notes together with the site service history.\n"
+                "That record helps the team answer follow-up questions without reopening the raw source folders.\n"
+            ),
+        }
     for name, body in docs.items():
         (source_dir / name).write_text(body, encoding="utf-8")
-    if scenario in {"review", "export"}:
-        (source_dir / "broken.json").write_text('{"alpha": 1,,}', encoding="utf-8")
 
 
 def _build_demo_project(base_dir: Path, scenario: str) -> Path | None:
-    if scenario in {"none", "starter"}:
+    if scenario == "starter":
+        scenario = "setup"
+    if scenario == "none":
         return None
     source_dir = base_dir / "source"
     output_dir = base_dir / "output"
     project_dir = base_dir / "workspace"
-    _write_demo_corpus(source_dir, scenario)
+    corpus_scenario = {
+        "processing": "review",
+        "review": "review",
+        "export": "export",
+    }.get(scenario, "setup")
+    _write_demo_corpus(source_dir, corpus_scenario)
     init_project(project_dir, "Tower Library", [source_dir], output_dir, "mixed-office-documents", "custom-gpt-balanced")
-    scan_project(project_dir)
+    if scenario in {"processing", "review", "export"}:
+        scan_project(project_dir)
     if scenario == "export":
         review_project(project_dir, approve_all=True)
         export_project(project_dir)
@@ -90,7 +135,7 @@ def _build_demo_project(base_dir: Path, scenario: str) -> Path | None:
 
 
 def _capture_window(root: Tk, output_path: Path) -> None:
-    if ImageGrab is None:
+    if ImageGrab is None or Image is None:
         raise RuntimeError("Pillow is required to capture screenshots. Install Pillow or use the OCR extras.")
     root.update()
     root.update_idletasks()
@@ -99,6 +144,7 @@ def _capture_window(root: Tk, output_path: Path) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     image = ImageGrab.grab(bbox=bbox)
     image = _trim_capture_border(image, top_only=used_client_area)
+    image = _fit_capture_canvas(image)
     image.save(output_path)
 
 
@@ -200,6 +246,35 @@ def _trim_capture_border(image, *, top_only: bool = False):
     return image.crop((left_trim, top_trim, right_trim, height))
 
 
+def _fit_capture_canvas(image):
+    target_width, target_height = REPO_SCREENSHOT_SIZE
+    width, height = image.size
+
+    if width > target_width:
+        x_offset = max(0, (width - target_width) // 2)
+        image = image.crop((x_offset, 0, x_offset + target_width, height))
+        width = target_width
+    elif width < target_width:
+        canvas = image.copy().convert("RGB")
+        background = canvas.getpixel((0, min(24, height - 1))) if height else (13, 23, 40)
+        padded = Image.new("RGB", (target_width, height), background)
+        padded.paste(canvas, ((target_width - width) // 2, 0))
+        image = padded
+        width = target_width
+
+    if height > target_height:
+        image = image.crop((0, 0, width, target_height))
+        height = target_height
+    elif height < target_height:
+        canvas = image.convert("RGB")
+        background = canvas.getpixel((min(32, width - 1), height - 1)) if height else (13, 23, 40)
+        padded = Image.new("RGB", (width, target_height), background)
+        padded.paste(canvas, (0, 0))
+        image = padded
+
+    return image
+
+
 def _destroy_root(root: Tk) -> None:
     try:
         pending = root.tk.splitlist(root.tk.call("after", "info"))
@@ -230,6 +305,7 @@ def _render_scene(
     app = App(root, initial_config=project_file)
     root.update_idletasks()
     app._set_active_view(view)
+    app._refresh_shell()
     root.update()
     root.lift()
     root.attributes("-topmost", True)
@@ -251,14 +327,9 @@ def _render_scene(
 
 def _render_repo_assets(args: argparse.Namespace) -> int:
     output_dir = DEFAULT_OUTPUT_DIR
-    scenes = [
-        ("github-home.png", "home", "starter"),
-        ("github-review.png", "review", "review"),
-        ("github-export.png", "export", "export"),
-    ]
     with tempfile.TemporaryDirectory(prefix="gptkb-gh-shot-") as temp_root:
         temp_root_path = Path(temp_root)
-        for filename, view, scenario in scenes:
+        for filename, view, scenario in REPO_SCREENSHOTS:
             project_file = _build_demo_project(temp_root_path / filename.replace(".png", ""), scenario)
             _render_scene(
                 project_file=project_file,

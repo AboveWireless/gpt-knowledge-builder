@@ -7,7 +7,8 @@ from knowledge_builder.version import APP_DESCRIPTION, APP_NAME, APP_VERSION, EX
 
 project_root = Path.cwd()
 launcher = project_root / "packaging" / "macos" / "app_launcher.py"
-icon_path = project_root / "packaging" / "windows" / "assets" / "app.ico"
+icon_path = project_root / "packaging" / "macos" / "assets" / "app.icns"
+fallback_icon_path = project_root / "packaging" / "windows" / "assets" / "app.ico"
 
 datas = [
     (str(project_root / "README.md"), "."),
@@ -47,7 +48,7 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
-    icon=str(icon_path) if icon_path.exists() else None,
+    icon=str(icon_path) if icon_path.exists() else (str(fallback_icon_path) if fallback_icon_path.exists() else None),
 )
 
 coll = COLLECT(
@@ -63,7 +64,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name=f"{APP_NAME}.app",
-    icon=str(icon_path) if icon_path.exists() else None,
+    icon=str(icon_path) if icon_path.exists() else (str(fallback_icon_path) if fallback_icon_path.exists() else None),
     bundle_identifier="com.gptknowledgebuilder.desktop",
     info_plist={
         "CFBundleDisplayName": APP_NAME,

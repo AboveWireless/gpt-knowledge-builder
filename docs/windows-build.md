@@ -1,5 +1,20 @@
 ﻿# Windows Build
 
+## Windows version for end users
+
+When a tagged GitHub release is published, it includes:
+
+- `GPTKnowledgeBuilder-<version>-Setup.exe`
+- `GPTKnowledgeBuilder-<version>-portable.zip`
+
+Install it like this:
+
+1. Download the latest Windows asset from GitHub Releases.
+2. Run `GPTKnowledgeBuilder-<version>-Setup.exe` for the normal installer path.
+3. Or unzip `GPTKnowledgeBuilder-<version>-portable.zip` and launch `GPTKnowledgeBuilder.exe` directly.
+
+If the Releases page is empty, use the local build steps below to produce the Windows app yourself.
+
 ## Prerequisites
 
 - Python 3.10 or newer

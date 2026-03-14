@@ -6,7 +6,7 @@
 
 Local-first desktop app for Windows and macOS that turns messy document folders into clean, upload-ready Custom GPT knowledge packages.
 
-![GPT Knowledge Builder banner](docs/images/hero-banner.svg)
+![GPT Knowledge Builder home screen](docs/images/github-home.png)
 
 ## What it is
 
@@ -50,24 +50,26 @@ Most people building Custom GPTs either upload raw documents directly or spend h
 
 That beginner-first flow now ships with larger spacing, plainer wording, and one obvious next action on every screen.
 
-## At a glance
-
-![Workspace preview](docs/images/workspace-preview.svg)
-
 ## Download the right version
 
-Each GitHub release includes both desktop versions:
+The release workflow is wired for both desktop versions. When a tagged GitHub release is published, it will include:
 
-- `Windows version`: download `GPTKnowledgeBuilder-<version>-Setup.exe`, run the installer, then launch `GPT Knowledge Builder` from the Start menu.
+- `Windows version`: download `GPTKnowledgeBuilder-<version>-Setup.exe` for the normal installer path or `GPTKnowledgeBuilder-<version>-portable.zip` for a portable build, then launch `GPT Knowledge Builder`.
 - `macOS version`: download `GPTKnowledgeBuilder-<version>-macos.dmg` or `GPTKnowledgeBuilder-<version>-macos.zip`, move `GPT Knowledge Builder.app` into `Applications`, then launch it from Finder or Spotlight.
+
+If the [Releases](https://github.com/AboveWireless/gpt-knowledge-builder/releases) page is empty, use the Windows or macOS build guide below to create the desktop app locally.
 
 If macOS shows a security warning the first time you open it, Control-click the app, choose `Open`, and confirm. If macOS still blocks it, open `System Settings` -> `Privacy & Security` and choose `Open Anyway`.
 
-## Screenshots
+## Product tour
 
 ### Easy Start
 
-![Dashboard screenshot](docs/images/github-home.png)
+![Sources setup screenshot](docs/images/github-sources.png)
+
+### Scan And Triage
+
+![Processing screenshot](docs/images/github-processing.png)
 
 ### Guided Review
 
@@ -94,7 +96,7 @@ If macOS shows a security warning the first time you open it, Control-click the 
 
 ## Quick start for Windows users
 
-Download the latest installer from [GitHub Releases](https://github.com/AboveWireless/gpt-knowledge-builder/releases), install the app, then launch `GPT Knowledge Builder` from the Start menu.
+When a tagged release is available, download the latest Windows installer or portable zip from [GitHub Releases](https://github.com/AboveWireless/gpt-knowledge-builder/releases), install or unzip it, then launch `GPT Knowledge Builder`.
 
 Typical workflow:
 
@@ -106,11 +108,9 @@ Typical workflow:
 
 The app writes a clean package plus optional provenance/debug outputs under your configured export directory.
 
-![Export preview](docs/images/export-preview.svg)
-
 ## Quick start for macOS users
 
-Download the latest macOS release from [GitHub Releases](https://github.com/AboveWireless/gpt-knowledge-builder/releases), open the `.dmg` or `.zip`, move `GPT Knowledge Builder.app` into `Applications`, then launch it from Finder or Spotlight.
+When a tagged release is available, download the latest macOS release from [GitHub Releases](https://github.com/AboveWireless/gpt-knowledge-builder/releases), open the `.dmg` or `.zip`, move `GPT Knowledge Builder.app` into `Applications`, then launch it from Finder or Spotlight.
 
 If macOS warns that the app is from an unidentified developer, Control-click the app, choose `Open`, and confirm. If you still do not see the app open, go to `System Settings` -> `Privacy & Security` and press `Open Anyway`.
 
@@ -357,6 +357,8 @@ python .\scripts\render_github_screenshot.py --render-repo-assets
 That command rebuilds demo scenes and refreshes:
 
 - `docs/images/github-home.png`
+- `docs/images/github-sources.png`
+- `docs/images/github-processing.png`
 - `docs/images/github-review.png`
 - `docs/images/github-export.png`
 
@@ -377,11 +379,13 @@ That command rebuilds demo scenes and refreshes:
 
 ## Project status
 
-This is an installable public-preview release of the product. The core workflow is stable, but security and distribution upgrades are still planned:
+This repo is prepared for the first public-preview desktop release. The core workflow is stable, the release workflow builds Windows and macOS packages, and the remaining gaps are mostly around distribution hardening:
 
-- Windows Credential Manager for API keys
+- the first public tagged release still needs to be published
 - code signing for Windows and macOS releases
+- Windows Credential Manager for API keys
 - richer knowledge-item review editing
+
 
 ## License
 

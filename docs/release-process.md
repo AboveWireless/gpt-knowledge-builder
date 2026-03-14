@@ -4,6 +4,8 @@
 
 Before the first public tag, replace the placeholder GitHub URLs in `pyproject.toml`, `knowledge_builder/version.py`, and `packaging/windows/GPTKnowledgeBuilder.iss` with the real repository path.
 
+Until that first public tag exists, keep the README and platform guides truthful by pointing users to the local build guides instead of implying that packaged downloads are already live on GitHub Releases.
+
 1. Update `CHANGELOG.md`.
 2. Ensure `knowledge_builder/version.py` contains the release version.
 3. Verify `python -m pytest` passes locally.
@@ -20,6 +22,7 @@ Before the first public tag, replace the placeholder GitHub URLs in `pyproject.t
 - Create project, scan, review, and export package
 - README copy and screenshots match the current guided workflow
 - README clearly lists both the Windows installer and the macOS version plus first-launch instructions
+- README screenshot references match the real generated asset set: `github-home`, `github-sources`, `github-processing`, `github-review`, and `github-export`
 - AI enrichment flow with a user-supplied API key
 - OCR-disabled behavior
 - OCR-enabled behavior on a machine with Tesseract installed
