@@ -177,7 +177,9 @@ def test_repo_editor_and_git_attributes_cover_cross_platform_files():
 
 def test_github_workflows_cover_ci_and_release_outputs():
     repo_root = Path(__file__).resolve().parents[1]
-    ci = yaml.safe_load((repo_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    ci_path = repo_root / ".github" / "workflows" / "ci.yml"
+    ci_text = ci_path.read_text(encoding="utf-8")
+    ci = yaml.safe_load(ci_text)
     release_path = repo_root / ".github" / "workflows" / "release.yml"
     release = yaml.safe_load(release_path.read_text(encoding="utf-8"))
     release_text = release_path.read_text(encoding="utf-8")
@@ -187,12 +189,16 @@ def test_github_workflows_cover_ci_and_release_outputs():
     assert "push" in ci_on
     assert "pull_request" in ci_on
     assert "test" in ci["jobs"]
+    assert "actions/checkout@v5" in ci_text
+    assert "actions/setup-python@v6" in ci_text
 
     assert "push" in release_on
     assert "workflow_dispatch" in release_on
     assert "build-windows" in release["jobs"]
     assert "build-macos" in release["jobs"]
     assert "publish-release" in release["jobs"]
+    assert "actions/checkout@v5" in release_text
+    assert "actions/setup-python@v6" in release_text
     assert "dist/installer/*.exe" in release_text
     assert "dist/*portable.zip" in release_text
     assert "dist/installer/*.dmg" in release_text
