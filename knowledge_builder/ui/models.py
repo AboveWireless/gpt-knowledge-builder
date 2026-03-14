@@ -24,22 +24,22 @@ class ColorPalette:
 
 @dataclass(frozen=True, slots=True)
 class TypeScale:
-    title: tuple[str, int, str] = ("Segoe UI Semibold", 24, "normal")
-    heading: tuple[str, int, str] = ("Segoe UI Semibold", 16, "normal")
-    subheading: tuple[str, int, str] = ("Segoe UI Semibold", 12, "normal")
-    body: tuple[str, int, str] = ("Segoe UI", 10, "normal")
-    caption: tuple[str, int, str] = ("Segoe UI", 9, "normal")
-    metric: tuple[str, int, str] = ("Segoe UI Semibold", 20, "normal")
+    title: tuple[str, int, str] = ("Segoe UI Semibold", 26, "normal")
+    heading: tuple[str, int, str] = ("Segoe UI Semibold", 18, "normal")
+    subheading: tuple[str, int, str] = ("Segoe UI Semibold", 13, "normal")
+    body: tuple[str, int, str] = ("Segoe UI", 11, "normal")
+    caption: tuple[str, int, str] = ("Segoe UI", 10, "normal")
+    metric: tuple[str, int, str] = ("Segoe UI Semibold", 22, "normal")
 
 
 @dataclass(frozen=True, slots=True)
 class SpacingScale:
-    xs: int = 4
-    sm: int = 8
-    md: int = 12
-    lg: int = 16
-    xl: int = 24
-    xxl: int = 32
+    xs: int = 6
+    sm: int = 10
+    md: int = 16
+    lg: int = 22
+    xl: int = 30
+    xxl: int = 42
 
 
 @dataclass(slots=True)
@@ -56,4 +56,3 @@ class MetricCardModel:
     value: str
     tone: str = "primary"
     detail: str = ""
-

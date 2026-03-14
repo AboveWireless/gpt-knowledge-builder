@@ -108,6 +108,12 @@ class ExtractedContent:
     pages: list[PageText] = field(default_factory=list)
     extraction_method: str = "unknown"
     ocr_used: bool = False
+    extraction_status: str = "success"
+    fallback_chain: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    failure_reason: str | None = None
+    quality_score: float = 1.0
+    preview_excerpt: str = ""
 
 
 @dataclass(slots=True)
@@ -221,4 +227,3 @@ class ProcessingFailure:
     error: str
     document_type: str
     checksum: str | None = None
-

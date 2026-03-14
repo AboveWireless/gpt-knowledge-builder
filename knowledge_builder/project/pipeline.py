@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import fnmatch
+import json
 import shutil
 import zipfile
 from difflib import SequenceMatcher
@@ -9,7 +10,6 @@ from pathlib import Path
 from ..compiler_models import SourceKnowledge
 from ..extractors import extract, get_supported_doc_type
 from ..naming import make_safe_corpus_name
-from ..scanner.discovery import discover_corpus_files
 from ..synthesis import (
     build_entities,
     build_glossary,
@@ -38,6 +38,9 @@ MAX_PACKAGE_FILE_BYTES = 8_000_000
 EXPORT_WORD_TARGET = 1700
 TARGET_PACKAGE_BYTES = 1_200_000
 MAX_ARTIFACT_WORDS = 1600
+MAX_SOURCE_FILE_BYTES = 32 * 1024 * 1024
+PREVIEW_UNIT_WORDS = 220
+RECENT_ISSUE_LIMIT = 12
 
 
 def validate_project(project_root: Path) -> list[str]:
@@ -73,132 +76,17 @@ def validate_project(project_root: Path) -> list[str]:
     return issues
 
 
+def diagnostics_paths(project_root: Path) -> dict[str, Path]:
+    diagnostics_dir = state_root(project_root.resolve()) / "exports" / "diagnostics"
+    return {
+        "diagnostics_dir": diagnostics_dir,
+        "json_path": diagnostics_dir / "corpus_diagnostics.json",
+        "markdown_path": diagnostics_dir / "corpus_diagnostics.md",
+    }
+
+
 def scan_project(project_root: Path, force: bool = False) -> dict:
-    project_root = project_root.resolve()
-    config = load_project_config(project_root)
-    project_state = load_state(project_root)
-    review_store = load_reviews(project_root)
-    root = state_root(project_root)
-    provider_api_key = resolve_provider_api_key(project_root, config.optional_model_settings.provider)
-    raw_cache_dir = root / "cache" / "raw"
-    clean_cache_dir = root / "cache" / "clean"
-    model_cache_dir = root / "cache" / "model"
-    ensure_dir(raw_cache_dir)
-    ensure_dir(clean_cache_dir)
-    ensure_dir(model_cache_dir)
-
-    documents = project_state.get("documents") or {}
-    seen_paths: set[str] = set()
-    summary = {"scanned": 0, "processed": 0, "skipped": 0, "flagged": 0, "removed": 0}
-    duplicate_candidates: list[tuple[str, str, str]] = []
-
-    discovered = _discover_project_files(project_root, config)
-    for path in discovered:
-        path = path.resolve()
-        source_key = str(path)
-        seen_paths.add(source_key)
-        summary["scanned"] += 1
-
-        checksum = sha256_file(path)
-        existing = documents.get(source_key) or {}
-        existing_fingerprint = (existing.get("fingerprint") or {})
-        raw_cache_path = raw_cache_dir / f"{checksum[:16]}.txt"
-        clean_cache_path = clean_cache_dir / f"{checksum[:16]}.txt"
-
-        if (
-            not force
-            and existing_fingerprint.get("checksum") == checksum
-            and raw_cache_path.exists()
-            and clean_cache_path.exists()
-        ):
-            summary["skipped"] += 1
-            continue
-
-        doc_type = get_supported_doc_type(path)
-        if not doc_type:
-            continue
-
-        extracted = extract(path, doc_type, None)
-        raw_text = extracted.text or ""
-        clean_text = clean_text_for_knowledge(raw_text)
-        knowledge = build_source_knowledge(
-            source_path=path,
-            document_type=doc_type,
-            title=extracted.title or path.stem,
-            raw_text=raw_text,
-            clean_text=clean_text,
-            extraction_method=extracted.extraction_method,
-            ocr_used=extracted.ocr_used,
-            source_folder_name=path.parent.name,
-        )
-
-        raw_cache_path.write_text(raw_text, encoding="utf-8")
-        clean_cache_path.write_text(clean_text, encoding="utf-8")
-        enrichment = run_optional_enrichment(config, path, knowledge, model_cache_dir, api_key=provider_api_key)
-        probable_domain = enrichment.get("taxonomy", {}).get("domain") or _infer_probable_domain(path, knowledge)
-        doc_id = knowledge.document_id
-        ai_hints = _merge_ai_hints(knowledge, enrichment)
-
-        documents[source_key] = {
-            "fingerprint": {
-                "source_path": source_key,
-                "checksum": checksum,
-                "size_bytes": path.stat().st_size,
-                "modified_at": mtime(path).isoformat(),
-            },
-            "document": {
-                "doc_id": doc_id,
-                "source_path": source_key,
-                "source_filename": path.name,
-                "source_root": _find_source_root(project_root, config, path),
-                "document_type": doc_type,
-                "checksum": checksum,
-                "title": enrichment.get("clean_title") or knowledge.title,
-                "clean_text_path": str(clean_cache_path),
-                "raw_text_path": str(raw_cache_path),
-                "extraction_method": knowledge.extraction_method,
-                "ocr_used": knowledge.ocr_used,
-                "word_count": word_count(clean_text),
-                "chunk_count": len(knowledge.chunks),
-                "probable_domain": probable_domain,
-                "topic": enrichment.get("taxonomy", {}).get("topic") or _fallback_topic_label(knowledge),
-                "review_status": "flagged" if knowledge.empty_reason else "clean",
-                "empty_reason": knowledge.empty_reason,
-                "duplicate_of": None,
-                "knowledge_item_count": len(knowledge.promoted_items),
-                "updated_at": iso_now(),
-                "enrichment_cache_key": enrichment.get("cache_key", ""),
-                "enrichment_mode": enrichment.get("mode", "deterministic"),
-                "ai_confidence": enrichment.get("confidence", 0.0),
-            },
-            "knowledge_summary": {
-                "summary_points": knowledge.summary_points,
-                "warnings": knowledge.warnings,
-                "accepted_candidates": json_ready(knowledge.accepted_candidates),
-                "promoted_items": json_ready(knowledge.promoted_items),
-                "ai_hints": ai_hints,
-                "enrichment": json_ready(enrichment),
-            },
-        }
-        summary["processed"] += 1
-        duplicate_candidates.append((source_key, doc_id, clean_text))
-
-    removed_paths = [source_path for source_path in list(documents.keys()) if source_path not in seen_paths]
-    for source_path in removed_paths:
-        record = documents.pop(source_path)
-        summary["removed"] += 1
-        for cache_key in ("raw_text_path", "clean_text_path"):
-            cache_path = Path(((record.get("document") or {}).get(cache_key)) or "")
-            if cache_path.exists():
-                cache_path.unlink()
-
-    review_store["items"] = _build_review_queue(project_root, config, documents, duplicate_candidates, review_store.get("items") or [])
-    summary["flagged"] = sum(1 for item in review_store["items"] if item.get("status") == "open")
-
-    save_state(project_root, {"version": 1, "documents": documents, "exports": project_state.get("exports") or []})
-    save_reviews(project_root, review_store)
-    append_log(root / "logs" / "project.log", f"scan scanned={summary['scanned']} processed={summary['processed']} skipped={summary['skipped']} flagged={summary['flagged']}")
-    return summary
+    return _scan_project_paths(project_root.resolve(), force=force)
 
 
 def review_project(project_root: Path, approve_all: bool = False, reject_duplicates: bool = False) -> dict:
@@ -292,6 +180,216 @@ def update_review_item(
     return target
 
 
+def retry_document_extraction(project_root: Path, review_id: str, strategy: str = "default") -> dict:
+    project_root = project_root.resolve()
+    review_store = load_reviews(project_root)
+    target = next((item for item in (review_store.get("items") or []) if item.get("review_id") == review_id), None)
+    if target is None:
+        raise ValueError(f"Review item not found: {review_id}")
+    source_path = Path(str(target.get("source_path") or "")).resolve()
+    summary = _scan_project_paths(
+        project_root,
+        force=True,
+        target_paths={str(source_path)},
+        strategy_overrides={str(source_path): strategy or "default"},
+    )
+    return {
+        "review_id": review_id,
+        "source_path": str(source_path),
+        "strategy": strategy or "default",
+        "summary": summary,
+    }
+
+
+def retry_review_items(
+    project_root: Path,
+    *,
+    kind: str = "all",
+    document_type: str = "all",
+    extraction_status: str = "all",
+    strategy: str | None = None,
+    status: str = "open",
+) -> dict:
+    project_root = project_root.resolve()
+    state = load_state(project_root)
+    reviews = load_reviews(project_root)
+    documents = state.get("documents") or {}
+    matched_sources: list[str] = []
+    seen: set[str] = set()
+
+    for item in reviews.get("items") or []:
+        if status != "all" and str(item.get("status") or "") != status:
+            continue
+        if kind != "all" and str(item.get("kind") or "") != kind:
+            continue
+        source_path = str(item.get("source_path") or "")
+        if not source_path or source_path in seen:
+            continue
+        document = (documents.get(source_path) or {}).get("document") or {}
+        if document_type != "all" and str(document.get("document_type") or "") != document_type:
+            continue
+        if extraction_status != "all" and str(document.get("extraction_status") or "") != extraction_status:
+            continue
+        seen.add(source_path)
+        matched_sources.append(source_path)
+
+    summary = {
+        "scanned": 0,
+        "processed": 0,
+        "skipped": 0,
+        "removed": 0,
+        "partial": 0,
+        "failed": 0,
+        "unsupported": 0,
+        "metadata_only": 0,
+        "duplicates": 0,
+        "review_required": 0,
+    }
+    if matched_sources:
+        summary = _scan_project_paths(
+            project_root,
+            force=True,
+            target_paths=set(matched_sources),
+            strategy_overrides={source_path: strategy or "default" for source_path in matched_sources},
+        )
+
+    return {
+        "matched_sources": matched_sources,
+        "kind": kind,
+        "document_type": document_type,
+        "extraction_status": extraction_status,
+        "strategy": strategy or "default",
+        "summary": summary,
+    }
+
+
+def promote_duplicate_as_canonical(project_root: Path, review_id: str) -> dict:
+    project_root = project_root.resolve()
+    state = load_state(project_root)
+    reviews = load_reviews(project_root)
+    target = next((item for item in (reviews.get("items") or []) if item.get("review_id") == review_id), None)
+    if target is None:
+        raise ValueError(f"Review item not found: {review_id}")
+    if str(target.get("kind") or "") != "duplicate":
+        raise ValueError("Selected review item is not a duplicate.")
+
+    documents = state.get("documents") or {}
+    canonical_source = str(target.get("source_path") or "")
+    canonical_document = ((documents.get(canonical_source) or {}).get("document") or {})
+    duplicate_source = str(canonical_document.get("duplicate_of") or "")
+    if not duplicate_source:
+        raise ValueError("Selected document is not currently marked as a duplicate.")
+
+    for source_path, record in documents.items():
+        document = record.get("document") or {}
+        if source_path in {canonical_source, duplicate_source} or str(document.get("duplicate_canonical_source") or "") in {canonical_source, duplicate_source}:
+            document["duplicate_canonical_source"] = canonical_source
+            document["duplicate_of"] = None if source_path == canonical_source else canonical_source
+            document["updated_at"] = iso_now()
+            record["document"] = document
+            documents[source_path] = record
+
+    review_items = _build_review_queue(project_root, load_project_config(project_root), documents, reviews.get("items") or [])
+    reviews["items"] = review_items
+    state["documents"] = documents
+    save_state(project_root, state)
+    save_reviews(project_root, reviews)
+    append_log(state_root(project_root) / "logs" / "project.log", f"duplicate_promote canonical={canonical_source} duplicate={duplicate_source}")
+    return {
+        "review_id": review_id,
+        "canonical_source": canonical_source,
+        "duplicate_source": duplicate_source,
+    }
+
+
+def export_diagnostics_report(project_root: Path) -> dict:
+    project_root = project_root.resolve()
+    state = load_state(project_root)
+    reviews = load_reviews(project_root)
+    config = load_project_config(project_root)
+    paths = diagnostics_paths(project_root)
+    ensure_dir(paths["diagnostics_dir"])
+
+    documents = state.get("documents") or {}
+    degraded_documents: list[dict] = []
+    for source_path, record in sorted(documents.items()):
+        document = record.get("document") or {}
+        status = str(document.get("extraction_status") or "unknown")
+        if status == "success" and not document.get("duplicate_of"):
+            continue
+        degraded_documents.append(
+            {
+                "source_path": source_path,
+                "status": status,
+                "reason": _document_issue_reason(document),
+                "document_type": document.get("document_type", ""),
+                "duplicate_of": document.get("duplicate_of", ""),
+            }
+        )
+
+    open_reviews = [item for item in (reviews.get("items") or []) if item.get("status") == "open"]
+    payload = {
+        "generated_at": iso_now(),
+        "project_name": config.project_name,
+        "corpus_metrics": {
+            "documents": len(documents),
+            "partial": sum(1 for record in documents.values() if (record.get("document") or {}).get("extraction_status") == "partial"),
+            "failed": sum(1 for record in documents.values() if (record.get("document") or {}).get("extraction_status") == "failed"),
+            "unsupported": sum(1 for record in documents.values() if (record.get("document") or {}).get("extraction_status") == "unsupported"),
+            "metadata_only": sum(1 for record in documents.values() if (record.get("document") or {}).get("extraction_status") == "metadata_only"),
+            "duplicates": sum(1 for record in documents.values() if (record.get("document") or {}).get("duplicate_of")),
+            "open_reviews": len(open_reviews),
+        },
+        "degraded_documents": degraded_documents,
+        "open_reviews": open_reviews,
+    }
+    write_json(paths["json_path"], payload)
+
+    markdown_lines = [
+        "# Corpus Diagnostics",
+        "",
+        f"Project: {config.project_name}",
+        f"Generated: {payload['generated_at']}",
+        "",
+        "## Corpus Metrics",
+        "",
+        f"- Documents: {payload['corpus_metrics']['documents']}",
+        f"- Partial: {payload['corpus_metrics']['partial']}",
+        f"- Failed: {payload['corpus_metrics']['failed']}",
+        f"- Unsupported: {payload['corpus_metrics']['unsupported']}",
+        f"- Metadata Only: {payload['corpus_metrics']['metadata_only']}",
+        f"- Duplicates: {payload['corpus_metrics']['duplicates']}",
+        f"- Open Reviews: {payload['corpus_metrics']['open_reviews']}",
+        "",
+        "## Degraded Documents",
+        "",
+    ]
+    if degraded_documents:
+        for item in degraded_documents:
+            markdown_lines.append(
+                f"- `{Path(str(item['source_path'])).name}` [{item['status']}] {item['reason']}"
+            )
+    else:
+        markdown_lines.append("- None")
+    markdown_lines.extend(["", "## Open Reviews", ""])
+    if open_reviews:
+        for item in open_reviews:
+            markdown_lines.append(
+                f"- `{Path(str(item.get('source_path') or '')).name}` [{item.get('severity', 'unknown')}] "
+                f"{item.get('kind', 'review')} :: {item.get('title', '')}"
+            )
+    else:
+        markdown_lines.append("- None")
+    paths["markdown_path"].write_text("\n".join(markdown_lines).strip() + "\n", encoding="utf-8")
+
+    append_log(state_root(project_root) / "logs" / "project.log", f"diagnostics json={paths['json_path']} markdown={paths['markdown_path']}")
+    return {
+        "diagnostics_dir": str(paths["diagnostics_dir"]),
+        "json_path": str(paths["json_path"]),
+        "markdown_path": str(paths["markdown_path"]),
+    }
+
+
 def export_project(project_root: Path, zip_pack: bool = False) -> dict:
     project_root = project_root.resolve()
     config = load_project_config(project_root)
@@ -354,11 +452,11 @@ def export_project(project_root: Path, zip_pack: bool = False) -> dict:
         for record in documents:
             doc = record.get("document") or {}
             source_name = make_safe_corpus_name(doc.get("source_filename", "document"))
-            raw_path = Path(doc.get("raw_text_path") or "")
-            clean_path = Path(doc.get("clean_text_path") or "")
-            if raw_path.exists():
+            raw_path = _safe_record_path(doc.get("raw_text_path"))
+            clean_path = _safe_record_path(doc.get("clean_text_path"))
+            if raw_path and raw_path.exists():
                 shutil.copyfile(raw_path, debug_dir / f"{source_name}__raw.txt")
-            if clean_path.exists():
+            if clean_path and clean_path.exists():
                 shutil.copyfile(clean_path, debug_dir / f"{source_name}__clean.txt")
 
     zip_path = None
@@ -392,25 +490,348 @@ def export_project(project_root: Path, zip_pack: bool = False) -> dict:
         "provenance_dir": str(provenance_dir),
         "zip_path": str(zip_path) if zip_path else "",
         "written_files": [str(path) for path in written_files],
+        "package_index_file": str(package_index_path),
+        "provenance_manifest": str(provenance_manifest_path),
         "knowledge_items_file": str(provenance_items_path),
         "validation_messages": validation_messages,
     }
 
 
+def _scan_project_paths(
+    project_root: Path,
+    *,
+    force: bool,
+    target_paths: set[str] | None = None,
+    strategy_overrides: dict[str, str] | None = None,
+) -> dict:
+    config = load_project_config(project_root)
+    project_state = load_state(project_root)
+    review_store = load_reviews(project_root)
+    root = state_root(project_root)
+    provider_api_key = resolve_provider_api_key(project_root, config.optional_model_settings.provider)
+    raw_cache_dir = root / "cache" / "raw"
+    clean_cache_dir = root / "cache" / "clean"
+    model_cache_dir = root / "cache" / "model"
+    ensure_dir(raw_cache_dir)
+    ensure_dir(clean_cache_dir)
+    ensure_dir(model_cache_dir)
+
+    documents = project_state.get("documents") or {}
+    seen_paths: set[str] = set()
+    strategy_overrides = strategy_overrides or {}
+    run_summary = {
+        "scanned": 0,
+        "processed": 0,
+        "skipped": 0,
+        "removed": 0,
+        "partial": 0,
+        "failed": 0,
+        "unsupported": 0,
+        "metadata_only": 0,
+        "duplicates": 0,
+        "review_required": 0,
+    }
+
+    discovered = _discover_project_files(project_root, config)
+    if target_paths is not None:
+        target_paths = {str(Path(path).resolve()) for path in target_paths}
+        discovered = [path for path in discovered if str(path.resolve()) in target_paths]
+
+    for path in discovered:
+        path = path.resolve()
+        source_key = str(path)
+        seen_paths.add(source_key)
+        run_summary["scanned"] += 1
+
+        checksum = sha256_file(path)
+        existing = documents.get(source_key) or {}
+        if _should_skip_existing(existing, checksum, force):
+            run_summary["skipped"] += 1
+            continue
+
+        retry_strategy = strategy_overrides.get(source_key, "default")
+        record = _build_document_record(
+            project_root=project_root,
+            config=config,
+            path=path,
+            doc_type=get_supported_doc_type(path),
+            checksum=checksum,
+            existing=existing,
+            raw_cache_dir=raw_cache_dir,
+            clean_cache_dir=clean_cache_dir,
+            model_cache_dir=model_cache_dir,
+            provider_api_key=provider_api_key,
+            retry_strategy=retry_strategy,
+        )
+        documents[source_key] = record
+        status = str((record.get("document") or {}).get("extraction_status") or "")
+        run_summary["processed"] += 1
+        if status in {"partial", "failed", "unsupported", "metadata_only"}:
+            run_summary[status] += 1
+
+    if target_paths is None:
+        removed_paths = [source_path for source_path in list(documents.keys()) if source_path not in seen_paths]
+        for source_path in removed_paths:
+            record = documents.pop(source_path)
+            run_summary["removed"] += 1
+            doc = record.get("document") or {}
+            for cache_key in ("raw_text_path", "clean_text_path"):
+                cache_path = _safe_record_path(doc.get(cache_key))
+                if cache_path and cache_path.exists():
+                    cache_path.unlink()
+
+    review_items = _build_review_queue(project_root, config, documents, review_store.get("items") or [])
+    review_store["items"] = review_items
+    report = _build_scan_report(documents, review_items, run_summary)
+
+    project_state["documents"] = documents
+    project_state["exports"] = project_state.get("exports") or []
+    project_state["last_scan_report"] = report
+    save_state(project_root, project_state)
+    save_reviews(project_root, review_store)
+    append_log(
+        root / "logs" / "project.log",
+        (
+            "scan "
+            f"scanned={report['scanned']} processed={report['processed']} skipped={report['skipped']} removed={report['removed']} "
+            f"partial={report['partial']} failed={report['failed']} unsupported={report['unsupported']} "
+            f"metadata_only={report['metadata_only']} review_required={report['review_required']} duplicates={report['duplicates']}"
+        ),
+    )
+    return report
+
+
+def _build_document_record(
+    *,
+    project_root: Path,
+    config: ProjectConfig,
+    path: Path,
+    doc_type: str | None,
+    checksum: str,
+    existing: dict,
+    raw_cache_dir: Path,
+    clean_cache_dir: Path,
+    model_cache_dir: Path,
+    provider_api_key: str,
+    retry_strategy: str,
+) -> dict:
+    existing_doc = existing.get("document") or {}
+    raw_cache_path = raw_cache_dir / f"{checksum[:16]}.txt"
+    clean_cache_path = clean_cache_dir / f"{checksum[:16]}.txt"
+    strategy_name = retry_strategy or "default"
+
+    if doc_type is None:
+        return _degraded_document_record(
+            project_root=project_root,
+            config=config,
+            path=path,
+            checksum=checksum,
+            existing_doc=existing_doc,
+            doc_type="unknown",
+            extraction_status="unsupported",
+            extraction_method="unsupported",
+            warnings=[f"Unsupported document type: {path.suffix.lower() or 'unknown'}"],
+            failure_reason=f"Unsupported document type: {path.suffix.lower() or 'unknown'}",
+            retry_strategy=strategy_name,
+        )
+    if MAX_SOURCE_FILE_BYTES and path.stat().st_size > MAX_SOURCE_FILE_BYTES:
+        return _degraded_document_record(
+            project_root=project_root,
+            config=config,
+            path=path,
+            checksum=checksum,
+            existing_doc=existing_doc,
+            doc_type=doc_type,
+            extraction_status="metadata_only",
+            extraction_method=f"{doc_type}-metadata-only",
+            warnings=[f"Source file exceeds MAX_SOURCE_FILE_BYTES ({MAX_SOURCE_FILE_BYTES} bytes)."],
+            failure_reason="File skipped because it exceeded the source size limit.",
+            retry_strategy=strategy_name,
+        )
+
+    extracted = extract(path, doc_type, None, None if strategy_name == "default" else strategy_name)
+    raw_text = extracted.text or ""
+    clean_text = clean_text_for_knowledge(raw_text)
+    raw_cache_path.write_text(raw_text, encoding="utf-8")
+    clean_cache_path.write_text(clean_text, encoding="utf-8")
+    knowledge = build_source_knowledge(
+        source_path=path,
+        document_type=doc_type,
+        title=extracted.title or path.stem,
+        raw_text=raw_text,
+        clean_text=clean_text,
+        extraction_method=extracted.extraction_method,
+        ocr_used=extracted.ocr_used,
+        source_folder_name=path.parent.name,
+    )
+    enrichment = run_optional_enrichment(config, path, knowledge, model_cache_dir, api_key=provider_api_key)
+    preview_mode, preview_units, preview_excerpt = _build_preview_data(path, doc_type, extracted.pages, clean_text, extracted.preview_excerpt)
+    warnings = _unique_texts(list(extracted.warnings) + list(knowledge.warnings))
+    return {
+        "fingerprint": {
+            "source_path": str(path),
+            "checksum": checksum,
+            "size_bytes": path.stat().st_size,
+            "modified_at": mtime(path).isoformat(),
+        },
+        "document": {
+            "doc_id": knowledge.document_id,
+            "source_path": str(path),
+            "source_filename": path.name,
+            "source_root": _find_source_root(project_root, config, path),
+            "document_type": doc_type,
+            "checksum": checksum,
+            "title": enrichment.get("clean_title") or knowledge.title,
+            "clean_text_path": str(clean_cache_path),
+            "raw_text_path": str(raw_cache_path),
+            "extraction_method": extracted.extraction_method,
+            "extraction_status": extracted.extraction_status,
+            "failure_reason": extracted.failure_reason or "",
+            "ocr_used": extracted.ocr_used,
+            "quality_score": float(extracted.quality_score),
+            "warnings": warnings,
+            "word_count": word_count(clean_text),
+            "chunk_count": len(knowledge.chunks),
+            "probable_domain": enrichment.get("taxonomy", {}).get("domain") or _infer_probable_domain(path, knowledge),
+            "topic": enrichment.get("taxonomy", {}).get("topic") or _fallback_topic_label(knowledge),
+            "review_status": "flagged" if extracted.extraction_status != "success" or knowledge.empty_reason else "clean",
+            "empty_reason": knowledge.empty_reason,
+            "duplicate_of": existing_doc.get("duplicate_of"),
+            "duplicate_canonical_source": existing_doc.get("duplicate_canonical_source", str(path)),
+            "knowledge_item_count": len(knowledge.promoted_items),
+            "updated_at": iso_now(),
+            "enrichment_cache_key": enrichment.get("cache_key", ""),
+            "enrichment_mode": enrichment.get("mode", "deterministic"),
+            "ai_confidence": enrichment.get("confidence", 0.0),
+            "preview_mode": preview_mode,
+            "preview_units": preview_units,
+            "preview_cache": existing_doc.get("preview_cache") or {},
+            "last_preview_error": existing_doc.get("last_preview_error", ""),
+            "preview_excerpt": preview_excerpt,
+            "last_retry_strategy": strategy_name,
+            "retry_strategies": _merge_retry_strategies(existing_doc.get("retry_strategies"), strategy_name),
+        },
+        "knowledge_summary": {
+            "summary_points": knowledge.summary_points,
+            "warnings": knowledge.warnings,
+            "accepted_candidates": json_ready(knowledge.accepted_candidates),
+            "promoted_items": json_ready(knowledge.promoted_items),
+            "ai_hints": _merge_ai_hints(knowledge, enrichment),
+            "enrichment": json_ready(enrichment),
+        },
+    }
+
+
+def _degraded_document_record(
+    *,
+    project_root: Path,
+    config: ProjectConfig,
+    path: Path,
+    checksum: str,
+    existing_doc: dict,
+    doc_type: str,
+    extraction_status: str,
+    extraction_method: str,
+    warnings: list[str],
+    failure_reason: str,
+    retry_strategy: str,
+) -> dict:
+    preview_excerpt = failure_reason or (warnings[0] if warnings else "No preview available.")
+    return {
+        "fingerprint": {
+            "source_path": str(path),
+            "checksum": checksum,
+            "size_bytes": path.stat().st_size,
+            "modified_at": mtime(path).isoformat(),
+        },
+        "document": {
+            "doc_id": existing_doc.get("doc_id") or checksum[:16],
+            "source_path": str(path),
+            "source_filename": path.name,
+            "source_root": _find_source_root(project_root, config, path),
+            "document_type": doc_type,
+            "checksum": checksum,
+            "title": existing_doc.get("title") or path.stem,
+            "clean_text_path": "",
+            "raw_text_path": "",
+            "extraction_method": extraction_method,
+            "extraction_status": extraction_status,
+            "failure_reason": failure_reason,
+            "ocr_used": False,
+            "quality_score": 0.0 if extraction_status == "unsupported" else 0.2,
+            "warnings": warnings,
+            "word_count": 0,
+            "chunk_count": 0,
+            "probable_domain": "general",
+            "topic": "general",
+            "review_status": "flagged",
+            "empty_reason": extraction_status,
+            "duplicate_of": existing_doc.get("duplicate_of"),
+            "duplicate_canonical_source": existing_doc.get("duplicate_canonical_source", str(path)),
+            "knowledge_item_count": 0,
+            "updated_at": iso_now(),
+            "enrichment_cache_key": "",
+            "enrichment_mode": "deterministic",
+            "ai_confidence": 0.0,
+            "preview_mode": "text",
+            "preview_units": [{"label": "Preview", "text": preview_excerpt, "page_number": 1, "ocr_used": False}],
+            "preview_cache": existing_doc.get("preview_cache") or {},
+            "last_preview_error": existing_doc.get("last_preview_error", ""),
+            "preview_excerpt": preview_excerpt,
+            "last_retry_strategy": retry_strategy,
+            "retry_strategies": _merge_retry_strategies(existing_doc.get("retry_strategies"), retry_strategy),
+        },
+        "knowledge_summary": {
+            "summary_points": [],
+            "warnings": warnings,
+            "accepted_candidates": [],
+            "promoted_items": [],
+            "ai_hints": {"synopsis": "", "glossary_hints": [], "review_notes": warnings[:4]},
+            "enrichment": {"mode": "deterministic", "taxonomy": {"domain": "general", "topic": "general"}, "confidence": 0.0},
+        },
+    }
+
+
+def _should_skip_existing(existing: dict, checksum: str, force: bool) -> bool:
+    if force or not existing:
+        return False
+    return str((existing.get("fingerprint") or {}).get("checksum") or "") == checksum
+
+
 def _discover_project_files(project_root: Path, config: ProjectConfig) -> list[Path]:
     files: list[Path] = []
+    output_root = resolve_project_path(project_root, config.output_root).resolve()
     for source_root_value in config.source_roots:
         source_root = resolve_project_path(project_root, source_root_value)
         if not source_root.exists():
             continue
-        for discovered in discover_corpus_files(source_root):
-            rel = discovered.path.relative_to(source_root).as_posix()
+        for discovered in source_root.rglob("*"):
+            if not discovered.is_file():
+                continue
+            discovered = discovered.resolve()
+            if _should_skip_project_path(output_root, discovered):
+                continue
+            rel = discovered.relative_to(source_root).as_posix()
             if config.include_globs and not _matches_any(rel, config.include_globs):
                 continue
             if config.exclude_globs and _matches_any(rel, config.exclude_globs):
                 continue
-            files.append(discovered.path)
+            files.append(discovered)
     return sorted(set(files))
+
+
+def _should_skip_project_path(output_root: Path, path: Path) -> bool:
+    hidden_markers = {".git", ".svn", ".hg", "__pycache__", ".knowledge_builder"}
+    generated_suffixes = ("_GPT_KNOWLEDGE", "_DEBUG")
+    if any(part in hidden_markers for part in path.parts):
+        return True
+    if any(part.endswith(generated_suffixes) for part in path.parts if part):
+        return True
+    try:
+        path.relative_to(output_root)
+        return True
+    except ValueError:
+        return False
 
 
 def _matches_any(path: str, patterns: list[str]) -> bool:
@@ -455,34 +876,48 @@ def _find_source_root(project_root: Path, config: ProjectConfig, path: Path) -> 
     return str(path.parent)
 
 
-def _build_review_queue(project_root: Path, config: ProjectConfig, documents: dict, duplicate_candidates: list[tuple[str, str, str]], previous_items: list[dict]) -> list[dict]:
+def _build_review_queue(project_root: Path, config: ProjectConfig, documents: dict, previous_items: list[dict]) -> list[dict]:
     items: list[dict] = []
-    previous_map = {(item.get("doc_id"), item.get("kind")): item for item in previous_items}
-    all_duplicate_candidates = _load_duplicate_candidates(documents)
-    if duplicate_candidates:
-        # Include current-run candidates first so brand new duplicates are evaluated immediately.
-        seen_sources = {source_path for source_path, _doc_id, _text in all_duplicate_candidates}
-        for candidate in duplicate_candidates:
-            if candidate[0] not in seen_sources:
-                all_duplicate_candidates.append(candidate)
-    duplicate_map = _find_duplicates(all_duplicate_candidates, config.review_thresholds.duplicate_similarity_threshold)
+    previous_map = {str(item.get("review_id") or ""): item for item in previous_items}
+    duplicate_map = _find_duplicates(
+        _load_duplicate_candidates(documents),
+        config.review_thresholds.duplicate_similarity_threshold,
+        {
+            source_path: str((record.get("document") or {}).get("duplicate_canonical_source") or "")
+            for source_path, record in documents.items()
+        },
+    )
+    canonical_sources = set(duplicate_map.values())
 
     for source_path, record in sorted(documents.items()):
         document = record.get("document") or {}
         word_total = int(document.get("word_count") or 0)
         doc_id = str(document.get("doc_id") or source_path)
         issues: list[tuple[str, str, str, str, float]] = []
-        if document.get("empty_reason"):
-            issues.append(("empty", "high", "Document produced no usable knowledge", str(document.get("empty_reason")), 0.2))
-        if document.get("ocr_used"):
-            issues.append(("ocr", "medium", "OCR-backed extraction used", "Review for text quality and hallucinated tokens.", 0.5))
-        if word_total < config.review_thresholds.low_signal_word_count and not document.get("empty_reason"):
-            issues.append(("low_signal", "medium", "Low-signal document", f"Only {word_total} words remained after normalization.", 0.45))
-        if duplicate_map.get(source_path):
+        extraction_status = str(document.get("extraction_status") or "unknown")
+
+        if source_path in duplicate_map:
             duplicate_target = duplicate_map[source_path]
             document["duplicate_of"] = duplicate_target
+            document["duplicate_canonical_source"] = duplicate_target
             issues.append(("duplicate", "high", "Possible duplicate document", f"Near-duplicate of {Path(duplicate_target).name}.", 0.3))
-        if document.get("probable_domain") == "general" and int(document.get("knowledge_item_count") or 0) <= 1:
+        elif source_path in canonical_sources:
+            document["duplicate_of"] = None
+            document["duplicate_canonical_source"] = str(document.get("duplicate_canonical_source") or source_path)
+        else:
+            document["duplicate_of"] = None
+            document["duplicate_canonical_source"] = str(document.get("duplicate_canonical_source") or source_path)
+
+        if extraction_status in {"failed", "unsupported", "metadata_only", "partial"}:
+            severity = "high" if extraction_status in {"failed", "unsupported"} else "medium"
+            issues.append(("extraction_issue", severity, "Extraction requires review", _document_issue_reason(document), 0.35 if extraction_status == "partial" else 0.2))
+        if not word_total and extraction_status not in {"unsupported", "metadata_only"}:
+            issues.append(("empty", "high", "Document produced no usable knowledge", _document_issue_reason(document), 0.15))
+        if document.get("ocr_used"):
+            issues.append(("ocr", "medium", "OCR-backed extraction used", "Review for text quality and hallucinated tokens.", 0.5))
+        if word_total < config.review_thresholds.low_signal_word_count and word_total > 0 and extraction_status not in {"unsupported", "metadata_only", "failed"}:
+            issues.append(("low_signal", "medium", "Low-signal document", f"Only {word_total} words remained after normalization.", 0.45))
+        if document.get("probable_domain") == "general" and int(document.get("knowledge_item_count") or 0) <= 1 and word_total > 0:
             issues.append(("taxonomy", "low", "Weak classification signal", "Review taxonomy/preset if this document belongs to a known domain.", 0.5))
         ai_confidence = float(document.get("ai_confidence") or 0.0)
         if document.get("enrichment_mode") == "openai" and ai_confidence < config.review_thresholds.low_confidence_threshold:
@@ -496,7 +931,7 @@ def _build_review_queue(project_root: Path, config: ProjectConfig, documents: di
 
         for kind, severity, title, detail, confidence in issues:
             review_id = f"{doc_id}::{kind}"
-            previous = previous_map.get((doc_id, kind)) or {}
+            previous = previous_map.get(review_id) or {}
             items.append(
                 {
                     "review_id": review_id,
@@ -520,30 +955,65 @@ def _build_review_queue(project_root: Path, config: ProjectConfig, documents: di
     return items
 
 
-def _load_duplicate_candidates(documents: dict) -> list[tuple[str, str, str]]:
-    candidates: list[tuple[str, str, str]] = []
+def _load_duplicate_candidates(documents: dict) -> list[tuple[str, str]]:
+    candidates: list[tuple[str, str]] = []
     for source_path, record in sorted(documents.items()):
         document = record.get("document") or {}
-        clean_path = Path(document.get("clean_text_path") or "")
-        if not clean_path.exists():
+        clean_path = _safe_record_path(document.get("clean_text_path"))
+        if not clean_path or not clean_path.exists():
             continue
         clean_text = clean_path.read_text(encoding="utf-8", errors="ignore")
-        candidates.append((source_path, str(document.get("doc_id") or source_path), clean_text))
+        if clean_text.strip():
+            candidates.append((source_path, clean_text))
     return candidates
 
 
-def _find_duplicates(duplicate_candidates: list[tuple[str, str, str]], threshold: float) -> dict[str, str]:
+def _find_duplicates(duplicate_candidates: list[tuple[str, str]], threshold: float, preferred_canonicals: dict[str, str]) -> dict[str, str]:
+    if len(duplicate_candidates) < 2:
+        return {}
     duplicates: dict[str, str] = {}
-    for index, (source_path, _doc_id, clean_text) in enumerate(duplicate_candidates):
+    parents = list(range(len(duplicate_candidates)))
+
+    def find(index: int) -> int:
+        while parents[index] != index:
+            parents[index] = parents[parents[index]]
+            index = parents[index]
+        return index
+
+    def union(left: int, right: int) -> None:
+        left_root = find(left)
+        right_root = find(right)
+        if left_root != right_root:
+            parents[right_root] = left_root
+
+    for index, (source_path, clean_text) in enumerate(duplicate_candidates):
         sample = clean_text[:3000]
-        for prior_source_path, _prior_doc_id, prior_clean_text in duplicate_candidates[:index]:
+        for prior_index, (prior_source_path, prior_clean_text) in enumerate(duplicate_candidates[:index]):
             prior_sample = prior_clean_text[:3000]
             if not sample.strip() or not prior_sample.strip():
                 continue
             similarity = SequenceMatcher(None, sample, prior_sample).ratio()
             if similarity >= threshold:
-                duplicates[source_path] = prior_source_path
-                break
+                union(index, prior_index)
+
+    groups: dict[int, list[str]] = {}
+    for index, (source_path, _clean_text) in enumerate(duplicate_candidates):
+        groups.setdefault(find(index), []).append(source_path)
+
+    for group in groups.values():
+        if len(group) < 2:
+            continue
+        votes: dict[str, int] = {}
+        for source_path in group:
+            preferred = preferred_canonicals.get(source_path, "")
+            if preferred in group:
+                votes[preferred] = votes.get(preferred, 0) + 1
+        canonical = sorted(group)[0]
+        if votes:
+            canonical = sorted(votes.items(), key=lambda item: (-item[1], item[0]))[0][0]
+        for source_path in group:
+            if source_path != canonical:
+                duplicates[source_path] = canonical
     return duplicates
 
 
@@ -551,9 +1021,13 @@ def _load_export_documents(state: dict) -> list[dict]:
     documents = []
     for record in (state.get("documents") or {}).values():
         document = record.get("document") or {}
-        if document.get("empty_reason"):
-            continue
         if document.get("review_status") == "rejected":
+            continue
+        if str(document.get("extraction_status") or "") in {"failed", "unsupported", "metadata_only"}:
+            continue
+        clean_path = _safe_record_path(document.get("clean_text_path"))
+        raw_path = _safe_record_path(document.get("raw_text_path"))
+        if not clean_path or not raw_path or not clean_path.exists() or not raw_path.exists():
             continue
         documents.append(record)
     return documents
@@ -563,9 +1037,11 @@ def _build_export_knowledge(records: list[dict]) -> list[SourceKnowledge]:
     items: list[SourceKnowledge] = []
     for record in records:
         document = record.get("document") or {}
-        source_path = Path(document.get("source_path") or "")
-        raw_text_path = Path(document.get("raw_text_path") or "")
-        clean_text_path = Path(document.get("clean_text_path") or "")
+        source_path = _safe_record_path(document.get("source_path"))
+        raw_text_path = _safe_record_path(document.get("raw_text_path"))
+        clean_text_path = _safe_record_path(document.get("clean_text_path"))
+        if not source_path or not raw_text_path or not clean_text_path:
+            continue
         if not source_path.exists() or not raw_text_path.exists() or not clean_text_path.exists():
             continue
         raw_text = raw_text_path.read_text(encoding="utf-8", errors="ignore")
@@ -726,6 +1202,8 @@ def _default_suggestion(kind: str, document: dict) -> str:
         return f"Override the domain if {document.get('source_filename')} belongs to a specific knowledge area."
     if kind == "ai_low_confidence":
         return "Review the AI-suggested title/domain before exporting."
+    if kind in {"extraction_issue", "empty"}:
+        return "Retry extraction or accept the degraded output after inspecting the preview."
     return "Approve, reject, or edit the document metadata."
 
 
@@ -794,3 +1272,145 @@ def _validate_package_outputs(written_files: list[Path], reviews: dict) -> list[
     if open_reviews:
         messages.append(f"{len(open_reviews)} unresolved review item(s) remain.")
     return messages
+
+
+def _build_scan_report(documents: dict, review_items: list[dict], run_summary: dict) -> dict:
+    report = dict(run_summary)
+    report["documents"] = len(documents)
+    report["document_types"] = {}
+    report["partial_docs"] = 0
+    report["failed_docs"] = 0
+    report["metadata_only_docs"] = 0
+    report["unsupported_docs"] = 0
+    open_reviews = [item for item in review_items if item.get("status") == "open"]
+    recent_issues: list[dict] = []
+
+    for source_path, record in sorted(documents.items()):
+        document = record.get("document") or {}
+        doc_type = str(document.get("document_type") or "unknown")
+        report["document_types"][doc_type] = report["document_types"].get(doc_type, 0) + 1
+        status = str(document.get("extraction_status") or "unknown")
+        if status == "partial":
+            report["partial_docs"] += 1
+        elif status == "failed":
+            report["failed_docs"] += 1
+        elif status == "metadata_only":
+            report["metadata_only_docs"] += 1
+        elif status == "unsupported":
+            report["unsupported_docs"] += 1
+
+        if status in {"partial", "failed", "metadata_only", "unsupported"}:
+            recent_issues.append({"source_path": source_path, "status": status, "reason": _document_issue_reason(document)})
+        elif document.get("duplicate_of"):
+            recent_issues.append(
+                {
+                    "source_path": source_path,
+                    "status": "duplicate",
+                    "reason": f"Near-duplicate of {Path(str(document.get('duplicate_of') or '')).name}.",
+                }
+            )
+
+    report["partial"] = report["partial_docs"]
+    report["failed"] = report["failed_docs"]
+    report["metadata_only"] = report["metadata_only_docs"]
+    report["unsupported"] = report["unsupported_docs"]
+    report["duplicates"] = sum(1 for record in documents.values() if (record.get("document") or {}).get("duplicate_of"))
+    report["open_reviews"] = len(open_reviews)
+    report["flagged"] = len(open_reviews)
+    report["review_required"] = len(open_reviews)
+
+    for item in open_reviews:
+        if len(recent_issues) >= RECENT_ISSUE_LIMIT:
+            break
+        recent_issues.append(
+            {
+                "source_path": str(item.get("source_path") or ""),
+                "status": str(item.get("kind") or "review"),
+                "reason": str(item.get("title") or item.get("detail") or "Review required."),
+            }
+        )
+    report["recent_issues"] = recent_issues[:RECENT_ISSUE_LIMIT]
+    return report
+
+
+def _document_issue_reason(document: dict) -> str:
+    warnings = document.get("warnings") or []
+    if warnings:
+        return str(warnings[0])
+    failure_reason = str(document.get("failure_reason") or "").strip()
+    if failure_reason:
+        return failure_reason
+    return f"Extraction finished with status {document.get('extraction_status', 'unknown')}."
+
+
+def _build_preview_data(path: Path, doc_type: str, pages: list, clean_text: str, fallback_excerpt: str) -> tuple[str, list[dict], str]:
+    excerpt = clean_text.strip() or fallback_excerpt.strip() or path.stem
+    if doc_type == "pdf":
+        units = []
+        for page in pages or []:
+            text = str(getattr(page, "text", "") or "").strip() or excerpt
+            units.append(
+                {
+                    "label": f"Page {getattr(page, 'page_number', len(units) + 1)}",
+                    "text": text,
+                    "page_number": getattr(page, "page_number", len(units) + 1),
+                    "ocr_used": bool(getattr(page, "ocr_used", False)),
+                }
+            )
+        if not units:
+            units = [{"label": "Preview", "text": excerpt, "page_number": 1, "ocr_used": False}]
+        return "pdf_image", units, excerpt[:900]
+
+    if pages and len(pages) > 1:
+        units = [
+            {
+                "label": f"Page {getattr(page, 'page_number', index + 1)}",
+                "text": str(getattr(page, "text", "") or "").strip() or excerpt,
+                "page_number": getattr(page, "page_number", index + 1),
+                "ocr_used": bool(getattr(page, "ocr_used", False)),
+            }
+            for index, page in enumerate(pages)
+        ]
+        return "text", units, excerpt[:900]
+
+    chunks = chunk_words(excerpt, PREVIEW_UNIT_WORDS)
+    if not chunks:
+        chunks = [path.stem]
+    return (
+        "text",
+        [
+            {
+                "label": f"Excerpt {index + 1}" if len(chunks) > 1 else "Preview",
+                "text": chunk,
+                "page_number": index + 1,
+                "ocr_used": False,
+            }
+            for index, chunk in enumerate(chunks)
+        ],
+        excerpt[:900],
+    )
+
+
+def _merge_retry_strategies(existing, latest: str) -> list[str]:
+    values: list[str] = []
+    for value in list(existing or []) + [latest or "default"]:
+        text = str(value or "default").strip() or "default"
+        if text not in values:
+            values.append(text)
+    return values or ["default"]
+
+
+def _unique_texts(values: list[str]) -> list[str]:
+    cleaned: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        if text and text not in cleaned:
+            cleaned.append(text)
+    return cleaned
+
+
+def _safe_record_path(value) -> Path | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    return Path(text)

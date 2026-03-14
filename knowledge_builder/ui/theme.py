@@ -33,7 +33,7 @@ def configure_theme(root: Tk, palette: ColorPalette, type_scale: TypeScale) -> t
         foreground="#06131f",
         borderwidth=0,
         focusthickness=0,
-        padding=(16, 10),
+        padding=(20, 12),
         font=type_scale.subheading,
     )
     style.map(
@@ -48,7 +48,7 @@ def configure_theme(root: Tk, palette: ColorPalette, type_scale: TypeScale) -> t
         borderwidth=1,
         bordercolor=palette.line,
         focusthickness=0,
-        padding=(14, 10),
+        padding=(18, 12),
         font=type_scale.body,
     )
     style.map(
@@ -63,7 +63,7 @@ def configure_theme(root: Tk, palette: ColorPalette, type_scale: TypeScale) -> t
         borderwidth=0,
         focusthickness=0,
         anchor="w",
-        padding=(14, 12),
+        padding=(16, 14),
         font=type_scale.subheading,
     )
     style.map(
@@ -78,13 +78,13 @@ def configure_theme(root: Tk, palette: ColorPalette, type_scale: TypeScale) -> t
         borderwidth=0,
         focusthickness=0,
         anchor="w",
-        padding=(14, 12),
+        padding=(16, 14),
         font=type_scale.subheading,
     )
     style.configure("TEntry", fieldbackground=palette.panel_soft, foreground=palette.ink, bordercolor=palette.line)
     style.configure("TCombobox", fieldbackground=palette.panel_soft, foreground=palette.ink, bordercolor=palette.line)
     style.configure("TCheckbutton", background=palette.panel, foreground=palette.ink)
-    style.configure("Treeview", background=palette.panel_alt, fieldbackground=palette.panel_alt, foreground=palette.ink, bordercolor=palette.line, rowheight=28)
+    style.configure("Treeview", background=palette.panel_alt, fieldbackground=palette.panel_alt, foreground=palette.ink, bordercolor=palette.line, rowheight=36)
     style.configure("Treeview.Heading", background=palette.panel_soft, foreground=palette.ink, font=type_scale.subheading)
     style.map("Treeview", background=[("selected", palette.nav_active)], foreground=[("selected", palette.ink)])
     return style
@@ -103,4 +103,3 @@ def tone_color(palette: ColorPalette, tone: str) -> str:
 
 def default_theme() -> tuple[ColorPalette, TypeScale, SpacingScale]:
     return ColorPalette(), TypeScale(), SpacingScale()
-

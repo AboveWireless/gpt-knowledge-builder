@@ -1,39 +1,59 @@
-﻿<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
-  <title id="title">GPT Knowledge Builder</title>
-  <desc id="desc">Product banner for GPT Knowledge Builder.</desc>
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="640" rx="32" fill="#08111F"/>
+  <rect x="24" y="24" width="1232" height="592" rx="28" fill="url(#panelGlow)" stroke="#244162" stroke-width="2"/>
+  <rect x="64" y="72" width="500" height="496" rx="24" fill="#102138"/>
+  <text x="96" y="150" fill="#4ED8FF" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="700">LOCAL-FIRST GPT WORKSPACE</text>
+  <text x="96" y="220" fill="#F1F5FF" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="700">GPT Knowledge Builder</text>
+  <text x="96" y="278" fill="#9CB0CF" font-family="Segoe UI, Arial, sans-serif" font-size="26">
+    <tspan x="96" dy="0">Pick folders, scan files, fix issues, and export</tspan>
+    <tspan x="96" dy="34">clean GPT-ready knowledge packs without wrestling</tspan>
+    <tspan x="96" dy="34">with raw project plumbing.</tspan>
+  </text>
+
+  <rect x="96" y="348" width="160" height="52" rx="14" fill="#4ED8FF"/>
+  <text x="126" y="381" fill="#07121F" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Easy Start</text>
+  <rect x="274" y="348" width="174" height="52" rx="14" fill="#172B45" stroke="#294263"/>
+  <text x="301" y="381" fill="#F1F5FF" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="600">Advanced CLI</text>
+
+  <rect x="96" y="438" width="380" height="92" rx="18" fill="#162843"/>
+  <text x="122" y="474" fill="#F1F5FF" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">For normal humans first</text>
+  <text x="122" y="506" fill="#9CB0CF" font-family="Segoe UI, Arial, sans-serif" font-size="18">
+    <tspan x="122" dy="0">One clear step at a time, roomy layouts,</tspan>
+    <tspan x="122" dy="24">and plain labels that keep momentum high.</tspan>
+  </text>
+
+  <rect x="620" y="84" width="596" height="472" rx="26" fill="#0D182A" stroke="#1E3859"/>
+  <rect x="652" y="118" width="532" height="116" rx="20" fill="#132238"/>
+  <rect x="680" y="144" width="132" height="32" rx="11" fill="#203350" stroke="#4ED8FF"/>
+  <text x="707" y="165" fill="#4ED8FF" font-family="Segoe UI, Arial, sans-serif" font-size="15" font-weight="700">DO THIS NOW</text>
+  <text x="680" y="206" fill="#F1F5FF" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="700">Pick folders to start</text>
+  <text x="680" y="194" fill="#9CB0CF" font-family="Segoe UI, Arial, sans-serif" font-size="18">
+    <tspan x="680" dy="54">Choose the files to scan and where the GPT files should go.</tspan>
+  </text>
+
+  <rect x="652" y="264" width="252" height="116" rx="18" fill="#162843"/>
+  <rect x="932" y="264" width="252" height="116" rx="18" fill="#162843"/>
+  <rect x="652" y="406" width="532" height="116" rx="18" fill="#162843"/>
+
+  <text x="678" y="302" fill="#45D7A3" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">WHAT HAPPENS NEXT</text>
+  <text x="678" y="338" fill="#F1F5FF" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">Scan files</text>
+  <text x="678" y="364" fill="#9CB0CF" font-family="Segoe UI, Arial, sans-serif" font-size="16">The app builds the working corpus.</text>
+
+  <text x="958" y="302" fill="#FFCA6B" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">FIX ISSUES</text>
+  <text x="958" y="338" fill="#F1F5FF" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">One at a time</text>
+  <text x="958" y="364" fill="#9CB0CF" font-family="Segoe UI, Arial, sans-serif" font-size="16">Accept, skip, retry, next.</text>
+
+  <text x="678" y="444" fill="#4ED8FF" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700">GET GPT FILES</text>
+  <text x="678" y="480" fill="#F1F5FF" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="700">Clean package output</text>
+  <text x="678" y="506" fill="#9CB0CF" font-family="Segoe UI, Arial, sans-serif" font-size="16">
+    <tspan x="678" dy="0">Knowledge pages, package index, and optional provenance files</tspan>
+    <tspan x="678" dy="22">without dumping the whole raw corpus into the final upload set.</tspan>
+  </text>
+
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#0f172a"/>
-      <stop offset="100%" stop-color="#111827"/>
-    </linearGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#14b8a6"/>
-      <stop offset="100%" stop-color="#38bdf8"/>
+    <linearGradient id="panelGlow" x1="48" y1="48" x2="1210" y2="592" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#10213A"/>
+      <stop offset="1" stop-color="#09111F"/>
     </linearGradient>
   </defs>
-  <rect width="1200" height="630" fill="url(#bg)"/>
-  <rect x="72" y="72" width="1056" height="486" rx="28" fill="#111827" stroke="#1f2937" stroke-width="2"/>
-  <rect x="112" y="126" width="280" height="378" rx="22" fill="#0b1220" stroke="#1f2937"/>
-  <rect x="430" y="126" width="624" height="86" rx="18" fill="#101826"/>
-  <rect x="430" y="236" width="448" height="150" rx="22" fill="#111827" stroke="#1f2937"/>
-  <rect x="902" y="236" width="152" height="268" rx="22" fill="#0f172a" stroke="#1f2937"/>
-  <rect x="430" y="410" width="448" height="94" rx="22" fill="#0f172a" stroke="#1f2937"/>
-  <rect x="134" y="162" width="236" height="58" rx="14" fill="#0f172a"/>
-  <rect x="134" y="236" width="236" height="58" rx="14" fill="#0f172a"/>
-  <rect x="134" y="310" width="236" height="58" rx="14" fill="#0f172a"/>
-  <rect x="134" y="384" width="236" height="58" rx="14" fill="#0f172a"/>
-  <rect x="460" y="154" width="172" height="14" rx="7" fill="url(#accent)"/>
-  <rect x="460" y="180" width="324" height="12" rx="6" fill="#334155"/>
-  <rect x="460" y="266" width="286" height="16" rx="8" fill="#f8fafc" opacity="0.95"/>
-  <rect x="460" y="296" width="348" height="12" rx="6" fill="#334155"/>
-  <rect x="460" y="320" width="308" height="12" rx="6" fill="#334155"/>
-  <rect x="460" y="344" width="252" height="12" rx="6" fill="#334155"/>
-  <rect x="460" y="438" width="236" height="14" rx="7" fill="#14b8a6"/>
-  <rect x="460" y="464" width="382" height="12" rx="6" fill="#334155"/>
-  <rect x="928" y="268" width="100" height="100" rx="18" fill="url(#accent)" opacity="0.9"/>
-  <rect x="928" y="388" width="100" height="14" rx="7" fill="#f8fafc" opacity="0.95"/>
-  <rect x="928" y="416" width="84" height="10" rx="5" fill="#334155"/>
-  <rect x="928" y="438" width="72" height="10" rx="5" fill="#334155"/>
-  <text x="112" y="560" fill="#e5e7eb" font-family="Segoe UI, Arial, sans-serif" font-size="56" font-weight="700">GPT Knowledge Builder</text>
-  <text x="112" y="598" fill="#94a3b8" font-family="Segoe UI, Arial, sans-serif" font-size="24">Local-first desktop packaging for Custom GPT knowledge uploads</text>
 </svg>

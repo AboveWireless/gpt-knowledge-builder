@@ -43,7 +43,23 @@ class ProjectConfig:
     preset: str = "mixed-office-documents"
     export_profile: str = "custom-gpt-balanced"
     include_globs: list[str] = field(
-        default_factory=lambda: ["**/*.pdf", "**/*.docx", "**/*.txt", "**/*.md", "**/*.html", "**/*.htm", "**/*.xlsx", "**/*.pptx", "**/*.csv"]
+        default_factory=lambda: [
+            "**/*.pdf",
+            "**/*.docx",
+            "**/*.txt",
+            "**/*.md",
+            "**/*.html",
+            "**/*.htm",
+            "**/*.xlsx",
+            "**/*.pptx",
+            "**/*.csv",
+            "**/*.tsv",
+            "**/*.json",
+            "**/*.xml",
+            "**/*.png",
+            "**/*.jpg",
+            "**/*.jpeg",
+        ]
     )
     exclude_globs: list[str] = field(default_factory=lambda: ["**/~$*", "**/.~*"])
     optional_model_settings: ModelSettings = field(default_factory=ModelSettings)

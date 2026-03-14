@@ -5,8 +5,9 @@ import sys
 from pathlib import Path
 
 from knowledge_builder.cli import run
-from knowledge_builder.project.pipeline import export_project, review_project, scan_project, update_review_item, validate_project
+from knowledge_builder.project.pipeline import export_diagnostics_report, export_project, promote_duplicate_as_canonical, retry_document_extraction, retry_review_items, review_project, scan_project, update_review_item, validate_project
 from knowledge_builder.project.store import load_project_config, load_reviews, load_secrets, load_state, save_project_config, save_secrets
+from tests.fixture_builders import build_mixed_stress_corpus
 
 
 def test_project_init_scan_and_export(tmp_path: Path):
@@ -82,6 +83,339 @@ def test_project_scan_skips_unchanged_files_and_tracks_duplicate_review(tmp_path
 
     review_summary = review_project(project_dir, reject_duplicates=True)
     assert review_summary["rejected"] >= 1
+
+
+def test_promote_duplicate_as_canonical_flips_duplicate_preference(tmp_path: Path):
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "exports"
+    project_dir = tmp_path / "workspace"
+    source_dir.mkdir()
+    body = "Ground lug torque: 45 Nm.\nDisconnect power before service.\n"
+    one = source_dir / "one.txt"
+    two = source_dir / "two.txt"
+    one.write_text(body, encoding="utf-8")
+    two.write_text(body, encoding="utf-8")
+
+    run(
+        [
+            "project",
+            "init",
+            "--project-dir",
+            str(project_dir),
+            "--source-root",
+            str(source_dir),
+            "--output-dir",
+            str(output_dir),
+            "--project-name",
+            "Canonical Duplicate",
+        ]
+    )
+
+    scan_project(project_dir)
+    duplicate_review = next(item for item in load_reviews(project_dir)["items"] if item["kind"] == "duplicate")
+    result = promote_duplicate_as_canonical(project_dir, duplicate_review["review_id"])
+    reviews = load_reviews(project_dir)["items"]
+    state = load_state(project_dir)
+
+    assert Path(result["canonical_source"]).name == "two.txt"
+    assert state["documents"][str(two)]["document"]["duplicate_of"] is None
+    assert state["documents"][str(one)]["document"]["duplicate_of"] == str(two)
+    assert state["documents"][str(two)]["document"]["duplicate_canonical_source"] == str(two)
+    assert any(item["kind"] == "duplicate" and item["source_path"] == str(one) for item in reviews)
+
+
+def test_project_scan_tracks_partial_and_failed_quality_report(tmp_path: Path):
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "exports"
+    project_dir = tmp_path / "workspace"
+    source_dir.mkdir()
+    (source_dir / "broken.json").write_text('{"alpha": 1,,}', encoding="utf-8")
+    (source_dir / "tiny.txt").write_text("short note", encoding="utf-8")
+
+    run(
+        [
+            "project",
+            "init",
+            "--project-dir",
+            str(project_dir),
+            "--source-root",
+            str(source_dir),
+            "--output-dir",
+            str(output_dir),
+            "--project-name",
+            "Quality Report",
+        ]
+    )
+
+    summary = scan_project(project_dir)
+    state = load_state(project_dir)
+    report = state["last_scan_report"]
+
+    assert summary["partial"] >= 1
+    assert report["partial"] >= 1
+    assert report["document_types"]["json"] == 1
+    assert report["recent_issues"]
+    assert any(item["kind"] == "extraction_issue" for item in load_reviews(project_dir)["items"])
+
+
+def test_project_scan_handles_large_corpus_incrementally(tmp_path: Path):
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "exports"
+    project_dir = tmp_path / "workspace"
+    source_dir.mkdir()
+    for index in range(40):
+        (source_dir / f"doc_{index:02d}.txt").write_text(
+            f"Tower procedure {index}\n\n1. Inspect site.\n2. Confirm identifier {index}.\n3. Record findings.\n",
+            encoding="utf-8",
+        )
+
+    run(
+        [
+            "project",
+            "init",
+            "--project-dir",
+            str(project_dir),
+            "--source-root",
+            str(source_dir),
+            "--output-dir",
+            str(output_dir),
+            "--project-name",
+            "Large Corpus",
+        ]
+    )
+
+    first = scan_project(project_dir)
+    second = scan_project(project_dir)
+
+    assert first["scanned"] == 40
+    assert first["processed"] == 40
+    assert second["skipped"] == 40
+
+
+def test_project_scan_persists_unsupported_and_oversize_inputs_and_export_skips_them(tmp_path: Path, monkeypatch):
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "exports"
+    project_dir = tmp_path / "workspace"
+    source_dir.mkdir()
+    (source_dir / "usable.txt").write_text(
+        "Tower grounding procedure.\n\n1. Inspect lug.\n2. Tighten hardware.\n3. Record torque.\n",
+        encoding="utf-8",
+    )
+    (source_dir / "unknown.bin").write_bytes(b"\x00\x01\x02unsupported")
+    (source_dir / "oversized.txt").write_text("A" * 2048, encoding="utf-8")
+
+    run(
+        [
+            "project",
+            "init",
+            "--project-dir",
+            str(project_dir),
+            "--source-root",
+            str(source_dir),
+            "--output-dir",
+            str(output_dir),
+            "--project-name",
+            "Mixed Degraded Corpus",
+        ]
+    )
+    config = load_project_config(project_dir)
+    config.include_globs = ["**/*"]
+    save_project_config(project_dir, config)
+
+    monkeypatch.setattr("knowledge_builder.project.pipeline.MAX_SOURCE_FILE_BYTES", 512)
+
+    first = scan_project(project_dir)
+    second = scan_project(project_dir)
+    state = load_state(project_dir)
+    reviews = load_reviews(project_dir)
+
+    assert first["unsupported"] == 1
+    assert first["metadata_only"] >= 1
+    assert second["skipped"] == 3
+    assert str(source_dir / "unknown.bin") in state["documents"]
+    assert str(source_dir / "oversized.txt") in state["documents"]
+    assert state["documents"][str(source_dir / "unknown.bin")]["document"]["extraction_status"] == "unsupported"
+    assert state["documents"][str(source_dir / "oversized.txt")]["document"]["extraction_status"] == "metadata_only"
+    assert any(item["kind"] == "extraction_issue" and item["source_path"].endswith("unknown.bin") for item in reviews["items"])
+    assert any(item["kind"] == "extraction_issue" and item["source_path"].endswith("oversized.txt") for item in reviews["items"])
+
+    result = export_project(project_dir)
+    provenance_manifest = json.loads(Path(result["provenance_manifest"]).read_text(encoding="utf-8"))
+    assert Path(result["package_dir"]).exists()
+    assert len(provenance_manifest["documents"]) == 1
+    assert provenance_manifest["documents"][0]["document"]["source_filename"] == "usable.txt"
+
+
+def test_project_scan_handles_large_mixed_corpus_without_pipeline_collapse(tmp_path: Path):
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "exports"
+    project_dir = tmp_path / "workspace"
+    source_dir.mkdir()
+    build_mixed_stress_corpus(source_dir)
+
+    run(
+        [
+            "project",
+            "init",
+            "--project-dir",
+            str(project_dir),
+            "--source-root",
+            str(source_dir),
+            "--output-dir",
+            str(output_dir),
+            "--project-name",
+            "Stress Corpus",
+        ]
+    )
+
+    first = scan_project(project_dir)
+    second = scan_project(project_dir)
+    state = load_state(project_dir)
+    report = state["last_scan_report"]
+    reviews = load_reviews(project_dir)
+
+    assert first["scanned"] == 85
+    assert first["processed"] == 85
+    assert first["partial"] >= 10
+    assert first["duplicates"] >= 1
+    assert first["review_required"] >= 1
+    assert second["skipped"] == 85
+    assert report["partial"] >= 10
+    assert report["duplicates"] >= 1
+    assert report["review_required"] >= 1
+    assert report["document_types"]["txt"] == 75
+    assert report["document_types"]["json"] == 6
+    assert report["document_types"]["xml"] == 4
+    assert report["recent_issues"]
+    assert any(item["kind"] == "duplicate" for item in reviews["items"])
+    assert any(item["kind"] == "extraction_issue" for item in reviews["items"])
+
+    result = export_project(project_dir)
+    assert Path(result["package_dir"]).exists()
+    assert (Path(result["package_dir"]) / "package_index.md").exists()
+
+
+def test_retry_document_extraction_reprocesses_only_selected_review_item(tmp_path: Path):
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "exports"
+    project_dir = tmp_path / "workspace"
+    source_dir.mkdir()
+    target = source_dir / "broken.json"
+    target.write_text('{"alpha": 1,,}', encoding="utf-8")
+    (source_dir / "good.txt").write_text("Grounding procedure.\n1. Inspect.\n2. Tighten.\n", encoding="utf-8")
+
+    run(
+        [
+            "project",
+            "init",
+            "--project-dir",
+            str(project_dir),
+            "--source-root",
+            str(source_dir),
+            "--output-dir",
+            str(output_dir),
+            "--project-name",
+            "Retry Target",
+        ]
+    )
+
+    scan_project(project_dir)
+    target_review = next(
+        item for item in load_reviews(project_dir)["items"]
+        if item["kind"] == "extraction_issue" and item["source_path"].endswith("broken.json")
+    )
+    target.write_text('{"alpha": 1, "fixed": true}', encoding="utf-8")
+
+    result = retry_document_extraction(project_dir, review_id=target_review["review_id"], strategy="raw")
+    state = load_state(project_dir)
+    document = state["documents"][str(target)]["document"]
+
+    assert result["summary"]["scanned"] == 1
+    assert result["summary"]["processed"] == 1
+    assert result["strategy"] == "raw"
+    assert document["extraction_status"] == "partial"
+    assert document["extraction_method"] == "json-raw"
+    assert document["last_retry_strategy"] == "raw"
+    assert document["retry_strategies"] == ["default", "raw"]
+    assert document["preview_units"]
+
+
+def test_export_diagnostics_report_writes_json_and_markdown(tmp_path: Path):
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "exports"
+    project_dir = tmp_path / "workspace"
+    source_dir.mkdir()
+    build_mixed_stress_corpus(source_dir, text_docs=8, broken_json=2, broken_xml=1, duplicates_every=4)
+
+    run(
+        [
+            "project",
+            "init",
+            "--project-dir",
+            str(project_dir),
+            "--source-root",
+            str(source_dir),
+            "--output-dir",
+            str(output_dir),
+            "--project-name",
+            "Diagnostics Corpus",
+        ]
+    )
+
+    scan_project(project_dir)
+    result = export_diagnostics_report(project_dir)
+    diagnostics_json = json.loads(Path(result["json_path"]).read_text(encoding="utf-8"))
+    diagnostics_md = Path(result["markdown_path"]).read_text(encoding="utf-8")
+
+    assert Path(result["diagnostics_dir"]).exists()
+    assert diagnostics_json["corpus_metrics"]["documents"] == 11
+    assert diagnostics_json["degraded_documents"]
+    assert "# Corpus Diagnostics" in diagnostics_md
+    assert "## Degraded Documents" in diagnostics_md
+
+
+def test_retry_review_items_filters_open_matching_documents(tmp_path: Path):
+    source_dir = tmp_path / "source"
+    output_dir = tmp_path / "exports"
+    project_dir = tmp_path / "workspace"
+    source_dir.mkdir()
+    (source_dir / "broken_a.json").write_text('{"alpha": 1,,}', encoding="utf-8")
+    (source_dir / "broken_b.json").write_text('{"beta": 2,,}', encoding="utf-8")
+    (source_dir / "broken.xml").write_text("<root><node>broken", encoding="utf-8")
+
+    run(
+        [
+            "project",
+            "init",
+            "--project-dir",
+            str(project_dir),
+            "--source-root",
+            str(source_dir),
+            "--output-dir",
+            str(output_dir),
+            "--project-name",
+            "Bulk Retry",
+        ]
+    )
+
+    scan_project(project_dir)
+    reviews = load_reviews(project_dir)
+    first_json_review = next(item for item in reviews["items"] if item["source_path"].endswith("broken_a.json"))
+    update_review_item(project_dir, review_id=first_json_review["review_id"], status="accepted")
+
+    result = retry_review_items(
+        project_dir,
+        kind="extraction_issue",
+        document_type="json",
+        extraction_status="partial",
+        strategy="raw",
+        status="open",
+    )
+
+    assert len(result["matched_sources"]) == 1
+    assert result["matched_sources"][0].endswith("broken_b.json")
+    state = load_state(project_dir)
+    assert state["documents"][str(source_dir / "broken_b.json")]["document"]["last_retry_strategy"] == "raw"
 
 
 def test_project_validate_reports_open_high_severity_reviews(tmp_path: Path):
