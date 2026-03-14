@@ -6,6 +6,7 @@ When a tagged GitHub release is published, it includes:
 
 - `GPTKnowledgeBuilder-<version>-Setup.exe`
 - `GPTKnowledgeBuilder-<version>-portable.zip`
+- `SHA256SUMS.txt`
 
 Install it like this:
 
@@ -14,6 +15,8 @@ Install it like this:
 3. Or unzip `GPTKnowledgeBuilder-<version>-portable.zip` and launch `GPTKnowledgeBuilder.exe` directly.
 
 If the Releases page is empty, use the local build steps below to produce the Windows app yourself.
+
+If you want to verify the download before launching it, compare the asset's SHA-256 checksum against the matching line in `SHA256SUMS.txt`.
 
 ## Prerequisites
 

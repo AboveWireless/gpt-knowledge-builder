@@ -6,6 +6,7 @@ When a tagged GitHub release is published, it includes a dedicated macOS version
 
 - `GPTKnowledgeBuilder-<version>-macos.dmg`
 - `GPTKnowledgeBuilder-<version>-macos.zip`
+- `SHA256SUMS.txt`
 
 Install it like this:
 
@@ -15,6 +16,8 @@ Install it like this:
 4. Open the app from Finder or Spotlight.
 
 If the Releases page is empty, use the local build steps below to produce the macOS app on a Mac.
+
+If you want to verify the download before launching it, compare the asset's SHA-256 checksum against the matching line in `SHA256SUMS.txt`.
 
 If macOS blocks the first launch:
 

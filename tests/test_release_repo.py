@@ -22,6 +22,8 @@ def _readme_image_paths(readme: str) -> list[str]:
 def test_public_repo_scaffolding_exists():
     repo_root = Path(__file__).resolve().parents[1]
     expected = [
+        ".editorconfig",
+        ".gitattributes",
         ".gitignore",
         "LICENSE",
         "CHANGELOG.md",
@@ -60,6 +62,7 @@ def test_readme_positions_truthful_cross_platform_release_story():
     assert "Windows version" in readme
     assert "macOS version" in readme
     assert "GPTKnowledgeBuilder-<version>-portable.zip" in readme
+    assert "SHA256SUMS.txt" in readme
     assert "Quick start for Windows users" in readme
     assert "Quick start for macOS users" in readme
     assert "render_github_screenshot.py --render-repo-assets" in readme
@@ -103,10 +106,12 @@ def test_windows_and_macos_build_guides_cover_end_user_install():
 
     assert "Windows version for end users" in windows_guide
     assert "GPTKnowledgeBuilder-<version>-portable.zip" in windows_guide
+    assert "SHA256SUMS.txt" in windows_guide
     assert "If the Releases page is empty" in windows_guide
 
     assert "macOS version for end users" in mac_guide
     assert "When a tagged GitHub release is published" in mac_guide
+    assert "SHA256SUMS.txt" in mac_guide
     assert "Privacy & Security" in mac_guide
     assert "Open Anyway" in mac_guide
 
@@ -118,12 +123,14 @@ def test_release_process_and_changelog_match_current_repo_state():
 
     assert "replace the placeholder GitHub URLs" not in release_process
     assert "AboveWireless/gpt-knowledge-builder" in release_process
-    assert "artifact names still match the release workflow outputs" in release_process
+    assert "artifact names plus `SHA256SUMS.txt`" in release_process
+    assert "SHA256SUMS.txt" in release_process
 
     assert "## [Unreleased]" in changelog
     assert "macOS desktop packaging" in changelog
     assert "GitHub screenshot generation" in changelog
     assert "guided desktop UI" in changelog
+    assert "SHA256SUMS.txt" in changelog
 
 
 def test_contributing_and_security_docs_reflect_cross_platform_repo_state():
@@ -151,6 +158,23 @@ def test_pyproject_has_public_release_metadata():
     assert "Issues =" in pyproject
 
 
+def test_repo_editor_and_git_attributes_cover_cross_platform_files():
+    repo_root = Path(__file__).resolve().parents[1]
+    editorconfig = (repo_root / ".editorconfig").read_text(encoding="utf-8")
+    gitattributes = (repo_root / ".gitattributes").read_text(encoding="utf-8")
+
+    assert "root = true" in editorconfig
+    assert "[*.ps1]" in editorconfig
+    assert "end_of_line = crlf" in editorconfig
+    assert "[*.py]" in editorconfig
+    assert "indent_size = 4" in editorconfig
+
+    assert "*.ps1 text eol=crlf" in gitattributes
+    assert "*.sh text eol=lf" in gitattributes
+    assert "*.png binary" in gitattributes
+    assert "*.icns binary" in gitattributes
+
+
 def test_github_workflows_cover_ci_and_release_outputs():
     repo_root = Path(__file__).resolve().parents[1]
     ci = yaml.safe_load((repo_root / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
@@ -173,3 +197,5 @@ def test_github_workflows_cover_ci_and_release_outputs():
     assert "dist/*portable.zip" in release_text
     assert "dist/installer/*.dmg" in release_text
     assert "dist/*macos.zip" in release_text
+    assert "SHA256SUMS.txt" in release_text
+    assert "sha256sum * > SHA256SUMS.txt" in release_text

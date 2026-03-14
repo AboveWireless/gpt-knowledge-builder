@@ -82,6 +82,12 @@ jobs:
           path: release-artifacts
           merge-multiple: true
 
+      - name: Generate release checksums
+        shell: bash
+        run: |
+          cd release-artifacts
+          sha256sum * > SHA256SUMS.txt
+
       - name: Publish release artifacts
         uses: softprops/action-gh-release@v2
         with:

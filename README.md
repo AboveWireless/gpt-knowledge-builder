@@ -56,6 +56,7 @@ The release workflow is wired for both desktop versions. When a tagged GitHub re
 
 - `Windows version`: download `GPTKnowledgeBuilder-<version>-Setup.exe` for the normal installer path or `GPTKnowledgeBuilder-<version>-portable.zip` for a portable build, then launch `GPT Knowledge Builder`.
 - `macOS version`: download `GPTKnowledgeBuilder-<version>-macos.dmg` or `GPTKnowledgeBuilder-<version>-macos.zip`, move `GPT Knowledge Builder.app` into `Applications`, then launch it from Finder or Spotlight.
+- `Checksums`: verify any downloaded asset against the bundled `SHA256SUMS.txt` file if you want an integrity check before launching it.
 
 If the [Releases](https://github.com/AboveWireless/gpt-knowledge-builder/releases) page is empty, use the Windows or macOS build guide below to create the desktop app locally.
 

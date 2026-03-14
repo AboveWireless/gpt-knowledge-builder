@@ -10,6 +10,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - macOS desktop packaging, release artifacts, and end-user install guidance alongside the Windows release flow.
 - Branded cross-platform app icons plus deterministic GitHub screenshot generation for the public repo.
 - Repo verification coverage for screenshots, release docs, and cross-platform workflow outputs.
+- Release checksum publishing via `SHA256SUMS.txt` plus repo-level editor and Git attributes for cleaner cross-platform collaboration.
 
 ### Changed
 - Refined the guided desktop UI with larger spacing, plainer beginner wording, and clearer next-step actions.

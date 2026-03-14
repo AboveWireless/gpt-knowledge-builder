@@ -2,7 +2,7 @@
 
 ## Release flow
 
-Before cutting a tag, confirm the public metadata still points to `https://github.com/AboveWireless/gpt-knowledge-builder` and that the documented Windows and macOS artifact names still match the release workflow outputs in `README.md`, `pyproject.toml`, `knowledge_builder/version.py`, and the packaging specs.
+Before cutting a tag, confirm the public metadata still points to `https://github.com/AboveWireless/gpt-knowledge-builder` and that the documented Windows and macOS artifact names plus `SHA256SUMS.txt` still match the release workflow outputs in `README.md`, `pyproject.toml`, `knowledge_builder/version.py`, and the packaging specs.
 
 Until that first public tag exists, keep the README and platform guides truthful by pointing users to the local build guides instead of implying that packaged downloads are already live on GitHub Releases.
 
@@ -12,7 +12,7 @@ Until that first public tag exists, keep the README and platform guides truthful
 4. Refresh the GitHub screenshots with `python .\scripts\render_github_screenshot.py --render-repo-assets`.
 5. Push the release branch or merge into `main`.
 6. Create and push a tag like `v0.1.0`.
-7. GitHub Actions will run tests, build the Windows and macOS desktop packages, and publish the release artifacts.
+7. GitHub Actions will run tests, build the Windows and macOS desktop packages, generate `SHA256SUMS.txt`, and publish the release artifacts.
 
 ## Manual release checklist
 
@@ -22,6 +22,7 @@ Until that first public tag exists, keep the README and platform guides truthful
 - Create project, scan, review, and export package
 - README copy and screenshots match the current guided workflow
 - README clearly lists both the Windows installer and the macOS version plus first-launch instructions
+- Release page includes `SHA256SUMS.txt` alongside the desktop artifacts
 - README screenshot references match the real generated asset set: `github-home`, `github-sources`, `github-processing`, `github-review`, and `github-export`
 - AI enrichment flow with a user-supplied API key
 - OCR-disabled behavior
