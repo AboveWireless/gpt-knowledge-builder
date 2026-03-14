@@ -21,6 +21,7 @@ body:
       label: Affected surface
       options:
         - Windows app
+        - macOS app
         - GUI workflow
         - CLI
         - Packaging / installer

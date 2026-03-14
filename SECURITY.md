@@ -8,7 +8,7 @@ Security fixes are applied to the latest public release branch or tag line.
 
 Do not open public GitHub issues for security-sensitive findings.
 
-Until a dedicated private reporting channel is configured on the GitHub repository, report vulnerabilities privately to the repository maintainer through the GitHub security reporting flow after the repository is published.
+Use GitHub's private vulnerability reporting flow for this repository when it is available. If private reporting is not enabled yet, contact the repository maintainer privately instead of opening a public issue.
 
 Include:
 

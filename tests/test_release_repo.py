@@ -111,6 +111,37 @@ def test_windows_and_macos_build_guides_cover_end_user_install():
     assert "Open Anyway" in mac_guide
 
 
+def test_release_process_and_changelog_match_current_repo_state():
+    repo_root = Path(__file__).resolve().parents[1]
+    release_process = (repo_root / "docs" / "release-process.md").read_text(encoding="utf-8")
+    changelog = (repo_root / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    assert "replace the placeholder GitHub URLs" not in release_process
+    assert "AboveWireless/gpt-knowledge-builder" in release_process
+    assert "artifact names still match the release workflow outputs" in release_process
+
+    assert "## [Unreleased]" in changelog
+    assert "macOS desktop packaging" in changelog
+    assert "GitHub screenshot generation" in changelog
+    assert "guided desktop UI" in changelog
+
+
+def test_contributing_and_security_docs_reflect_cross_platform_repo_state():
+    repo_root = Path(__file__).resolve().parents[1]
+    contributing = (repo_root / "CONTRIBUTING.md").read_text(encoding="utf-8")
+    security = (repo_root / "SECURITY.md").read_text(encoding="utf-8")
+    bug_template = (repo_root / ".github" / "ISSUE_TEMPLATE" / "bug_report.yml").read_text(encoding="utf-8")
+
+    assert "macos-build" in contributing
+    assert "packaging under `packaging/macos/`" in contributing
+    assert "public screenshots, build guides, and release wording aligned" in contributing
+
+    assert "after the repository is published" not in security
+    assert "private vulnerability reporting flow" in security
+
+    assert "- macOS app" in bug_template
+
+
 def test_pyproject_has_public_release_metadata():
     repo_root = Path(__file__).resolve().parents[1]
     pyproject = (repo_root / "pyproject.toml").read_text(encoding="utf-8")

@@ -2,7 +2,7 @@
 
 ## Release flow
 
-Before the first public tag, replace the placeholder GitHub URLs in `pyproject.toml`, `knowledge_builder/version.py`, and `packaging/windows/GPTKnowledgeBuilder.iss` with the real repository path.
+Before cutting a tag, confirm the public metadata still points to `https://github.com/AboveWireless/gpt-knowledge-builder` and that the documented Windows and macOS artifact names still match the release workflow outputs in `README.md`, `pyproject.toml`, `knowledge_builder/version.py`, and the packaging specs.
 
 Until that first public tag exists, keep the README and platform guides truthful by pointing users to the local build guides instead of implying that packaged downloads are already live on GitHub Releases.
 
