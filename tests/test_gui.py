@@ -923,7 +923,7 @@ def test_review_edit_and_open_output_actions_remain_wired(tmp_path: Path, monkey
 
         monkeypatch.setattr("knowledge_builder.gui.update_review_item", lambda *args, **kwargs: calls.__setitem__("review", True) or {"review_id": review_id})
         monkeypatch.setattr(app, "_run_async", lambda _kind, fn: fn())
-        monkeypatch.setattr("os.startfile", lambda _path: calls.__setitem__("open", True))
+        monkeypatch.setattr(app, "_open_path", lambda _path: calls.__setitem__("open", True))
 
         app.review_title_edit.set("Grounding Basics")
         app.on_apply_review_edit()
@@ -972,7 +972,7 @@ def test_retry_review_and_export_diagnostics_actions_remain_wired(tmp_path: Path
             "knowledge_builder.gui.retry_review_items",
             lambda *args, **kwargs: calls.__setitem__("bulk_retry", True) or {"matched_sources": [], "summary": {"processed": 0}},
         )
-        monkeypatch.setattr("os.startfile", lambda _path: calls.__setitem__("open_diag", True))
+        monkeypatch.setattr(app, "_open_path", lambda _path: calls.__setitem__("open_diag", True))
         monkeypatch.setattr(app, "_run_async", lambda _kind, fn: fn())
 
         app.review_retry_strategy.set("raw")
