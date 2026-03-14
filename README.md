@@ -1,7 +1,7 @@
 ﻿# GPT Knowledge Builder
 
 [![CI](https://github.com/AboveWireless/gpt-knowledge-builder/actions/workflows/ci.yml/badge.svg)](https://github.com/AboveWireless/gpt-knowledge-builder/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/AboveWireless/gpt-knowledge-builder?display_name=tag)](https://github.com/AboveWireless/gpt-knowledge-builder/releases)
+[![Release status](https://img.shields.io/badge/release-preview-orange)](https://github.com/AboveWireless/gpt-knowledge-builder/releases)
 [![License](https://img.shields.io/github/license/AboveWireless/gpt-knowledge-builder)](https://github.com/AboveWireless/gpt-knowledge-builder/blob/main/LICENSE)
 
 Local-first desktop app for Windows and macOS that turns messy document folders into clean, upload-ready Custom GPT knowledge packages.

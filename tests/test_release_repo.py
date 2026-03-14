@@ -57,6 +57,8 @@ def test_readme_positions_truthful_cross_platform_release_story():
     repo_root = Path(__file__).resolve().parents[1]
     readme = (repo_root / "README.md").read_text(encoding="utf-8")
     assert "Local-first desktop app for Windows and macOS" in readme
+    assert "https://img.shields.io/badge/release-preview-orange" in readme
+    assert "https://img.shields.io/github/v/release/AboveWireless/gpt-knowledge-builder?display_name=tag" not in readme
     assert "When a tagged GitHub release is published" in readme
     assert "If the [Releases](https://github.com/AboveWireless/gpt-knowledge-builder/releases) page is empty" in readme
     assert "Windows version" in readme
