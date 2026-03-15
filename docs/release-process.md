@@ -23,7 +23,8 @@ Until that first public tag exists, keep the README and platform guides truthful
 - README copy and screenshots match the current guided workflow
 - README clearly lists both the Windows installer and the macOS version plus first-launch instructions
 - Release page includes `SHA256SUMS.txt` alongside the desktop artifacts
-- README screenshot references match the real generated asset set: `github-home`, `github-sources`, `github-processing`, `github-review`, and `github-export`
+- README presentation assets match the generated asset set: `repo-hero`, `repo-tour`, `repo-review-detail`, and `repo-export-detail`
+- Base raw captures remain current for the repo image pipeline: `github-home`, `github-sources`, `github-processing`, `github-review`, and `github-export`
 - AI enrichment flow with a user-supplied API key
 - OCR-disabled behavior
 - OCR-enabled behavior on a machine with Tesseract installed

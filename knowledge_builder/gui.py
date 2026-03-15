@@ -60,6 +60,7 @@ class App:
 
         self.palette, self.type_scale, self.spacing = default_theme()
         configure_theme(root, self.palette, self.type_scale)
+        self.capture_scene: str | None = None
 
         self.project_dir = StringVar(value=str(initial_config.parent if initial_config else Path.cwd()))
         self.source_dir = StringVar(value=str(Path.cwd() / "input"))
@@ -1163,6 +1164,9 @@ class App:
         summary_wrap = self._content_wraplength()
         detail_wrap = 320 if not compact_review else self._content_wraplength(760)
         beginner_session_only = self._guided_mode_active()
+        if self.capture_scene == "repo_review_detail":
+            self._render_review_capture_view(detail_wrap)
+            return
         self._render_workflow_guide(self.content_frame, focus_step="review")
         self._render_transition_notice(self.content_frame, "review")
         self._render_advanced_controls_toggle(self.content_frame, "Review")
@@ -1540,11 +1544,85 @@ class App:
 
         self._refresh_review_display(self._current_project_dir(optional=True))
 
+    def _render_review_capture_view(self, detail_wrap: int) -> None:
+        self.review_tree = None
+        self.review_list = None
+        self.review_history_log = None
+        self.review_retry_combo = None
+        self.review_session_primary_button = None
+
+        hero = ttk.Frame(self.content_frame, style="PanelAlt.TFrame", padding=self.spacing.lg)
+        hero.pack(fill=X, pady=(self.spacing.lg, 0))
+        build_status_chip(hero, "Capture Focus", self.palette, tone="primary").pack(anchor=W)
+        ttk.Label(hero, text="Review one issue with the preview and next-step actions visible.", style="Section.TLabel", wraplength=detail_wrap * 2, justify=LEFT).pack(anchor=W, pady=(self.spacing.sm, 0))
+        ttk.Label(hero, textvariable=self.review_summary_var, style="Caption.TLabel", wraplength=detail_wrap * 2, justify=LEFT).pack(anchor=W, pady=(self.spacing.sm, 0))
+
+        body = ttk.Frame(self.content_frame, style="Panel.TFrame")
+        body.pack(fill=BOTH, expand=True, pady=(self.spacing.lg, 0))
+        left = ttk.Frame(body, style="PanelAlt.TFrame", padding=self.spacing.lg)
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, self.spacing.sm))
+        right = ttk.Frame(body, style="PanelAlt.TFrame", padding=self.spacing.lg)
+        right.grid(row=0, column=1, sticky="nsew")
+        body.columnconfigure(0, weight=1)
+        body.columnconfigure(1, weight=1)
+        body.rowconfigure(0, weight=1)
+
+        ttk.Label(left, textvariable=self.review_issue_title_var, style="Heading.TLabel", wraplength=detail_wrap, justify=LEFT).pack(anchor=W)
+        ttk.Label(left, textvariable=self.review_issue_reason_var, style="Muted.TLabel", wraplength=detail_wrap, justify=LEFT).pack(anchor=W, pady=(self.spacing.sm, 0))
+        ttk.Label(left, textvariable=self.review_issue_action_var, style="Caption.TLabel", wraplength=detail_wrap, justify=LEFT).pack(anchor=W, pady=(self.spacing.sm, 0))
+        ttk.Label(left, textvariable=self.review_meta_var, style="Caption.TLabel", wraplength=detail_wrap, justify=LEFT).pack(anchor=W, pady=(self.spacing.sm, 0))
+
+        action_row = ttk.Frame(left, style="PanelAlt.TFrame")
+        action_row.pack(fill=X, pady=(self.spacing.md, 0))
+        for column in range(2):
+            action_row.columnconfigure(column, weight=1)
+        ttk.Button(action_row, text="Accept", style="Primary.TButton", command=self.on_mark_review_accepted_and_next).grid(row=0, column=0, sticky="ew", padx=(0, self.spacing.sm), pady=(0, self.spacing.sm))
+        ttk.Button(action_row, text="Skip", style="Ghost.TButton", command=self.on_mark_review_rejected_and_next).grid(row=0, column=1, sticky="ew", pady=(0, self.spacing.sm))
+        ttk.Button(action_row, text="Retry", style="Ghost.TButton", command=self.on_retry_selected_review_and_next).grid(row=1, column=0, sticky="ew", padx=(0, self.spacing.sm))
+        ttk.Button(action_row, text="Next", style="Ghost.TButton", command=self.on_next_review_item).grid(row=1, column=1, sticky="ew")
+
+        ttk.Label(left, text="Resolution note", style="Caption.TLabel").pack(anchor=W, pady=(self.spacing.md, self.spacing.xs))
+        self.review_note_text = ScrolledText(left, height=10, width=36)
+        style_scrolled_text(self.review_note_text, self.palette, self.type_scale)
+        self.review_note_text.pack(fill=BOTH, expand=True)
+
+        preview_header = ttk.Frame(right, style="PanelAlt.TFrame")
+        preview_header.pack(fill=X)
+        ttk.Label(preview_header, textvariable=self.review_preview_label_var, style="Section.TLabel").pack(side=LEFT)
+        ttk.Button(preview_header, text="Previous", style="Ghost.TButton", command=self.on_prev_preview_unit).pack(side=RIGHT)
+        ttk.Button(preview_header, text="Next", style="Ghost.TButton", command=self.on_next_preview_unit).pack(side=RIGHT, padx=(0, self.spacing.sm))
+
+        self.review_thumbnail_strip = ttk.Frame(right, style="PanelAlt.TFrame")
+        self.review_thumbnail_strip.pack(fill=X, pady=(self.spacing.sm, 0))
+        self.review_preview_image_label = ttk.Label(right, style="Muted.TLabel")
+        self.review_preview_image_label.pack(fill=X, pady=(self.spacing.sm, 0))
+        self.review_preview_text = ScrolledText(right, height=16, width=42)
+        style_scrolled_text(self.review_preview_text, self.palette, self.type_scale)
+        self.review_preview_text.pack(fill=BOTH, expand=True, pady=(self.spacing.sm, 0))
+        self.review_duplicate_compare_frame = ttk.Frame(right, style="PanelAlt.TFrame", padding=self.spacing.sm)
+        self.review_duplicate_compare_frame.pack(fill=X, pady=(self.spacing.sm, 0))
+        self.review_duplicate_compare_frame.columnconfigure(0, weight=1)
+        self.review_duplicate_compare_frame.columnconfigure(1, weight=1)
+        ttk.Label(self.review_duplicate_compare_frame, text="Current Document", style="Caption.TLabel").grid(row=0, column=0, sticky=W, padx=(0, self.spacing.sm))
+        ttk.Label(self.review_duplicate_compare_frame, text="Canonical Comparison", style="Caption.TLabel").grid(row=0, column=1, sticky=W)
+        self.review_duplicate_current_text = ScrolledText(self.review_duplicate_compare_frame, height=6, width=22)
+        style_scrolled_text(self.review_duplicate_current_text, self.palette, self.type_scale)
+        self.review_duplicate_current_text.grid(row=1, column=0, sticky="nsew", padx=(0, self.spacing.sm), pady=(self.spacing.xs, 0))
+        self.review_duplicate_target_text = ScrolledText(self.review_duplicate_compare_frame, height=6, width=22)
+        style_scrolled_text(self.review_duplicate_target_text, self.palette, self.type_scale)
+        self.review_duplicate_target_text.grid(row=1, column=1, sticky="nsew", pady=(self.spacing.xs, 0))
+        self.review_duplicate_compare_frame.pack_forget()
+
+        self._refresh_review_display(self._current_project_dir(optional=True))
+
     def _render_export_view(self) -> None:
         compact_export = self._use_compact_shell_layout()
         summary_wrap = self._content_wraplength()
         state = load_state(self._current_project_dir(optional=True)) if self.view_state.has_project else {"exports": [], "documents": {}}
         latest = (state.get("exports") or [])[-1] if state.get("exports") else None
+        if self.capture_scene == "repo_export_detail":
+            self._render_export_capture_view(latest, summary_wrap)
+            return
         self._render_workflow_guide(self.content_frame, focus_step="export")
         self._render_transition_notice(self.content_frame, "export")
         self._render_advanced_controls_toggle(self.content_frame, "Export")
@@ -1689,6 +1767,56 @@ class App:
         self._populate_text_widget(self.export_log, lines)
         self._apply_view_focus("export", "artifacts", self.export_artifact_list)
         self._apply_view_focus("export", "validation", self.export_log)
+
+    def _render_export_capture_view(self, latest: dict | None, summary_wrap: int) -> None:
+        project_dir = self._current_project_dir(optional=True)
+        if project_dir:
+            self._refresh_export_display(project_dir)
+        readiness_label, readiness_tone, readiness_detail = self._export_readiness_state()
+        self.export_readiness_var.set(readiness_label)
+        self.export_readiness_detail_var.set(readiness_detail)
+
+        hero = ttk.Frame(self.content_frame, style="PanelAlt.TFrame", padding=self.spacing.lg)
+        hero.pack(fill=X, pady=(self.spacing.lg, 0))
+        build_status_chip(hero, self.export_readiness_var.get(), self.palette, tone=readiness_tone).pack(anchor=W)
+        ttk.Label(hero, textvariable=self.export_summary_var, style="Section.TLabel", wraplength=summary_wrap * 2, justify=LEFT).pack(anchor=W, pady=(self.spacing.sm, 0))
+        ttk.Label(hero, textvariable=self.export_next_action_var, style="Caption.TLabel", wraplength=summary_wrap * 2, justify=LEFT).pack(anchor=W, pady=(self.spacing.sm, 0))
+
+        action_row = ttk.Frame(hero, style="PanelAlt.TFrame")
+        action_row.pack(fill=X, pady=(self.spacing.md, 0))
+        ttk.Button(action_row, text="Get GPT Files", style="Primary.TButton", command=self.on_export).pack(side=LEFT)
+        ttk.Button(action_row, text="Open Output Folder", style="Ghost.TButton", command=self.on_open_output).pack(side=LEFT, padx=(self.spacing.sm, 0))
+        ttk.Button(action_row, text="Check Package", style="Ghost.TButton", command=self.on_validate).pack(side=LEFT, padx=(self.spacing.sm, 0))
+
+        lower = ttk.Frame(self.content_frame, style="Panel.TFrame")
+        lower.pack(fill=BOTH, expand=True, pady=(self.spacing.lg, 0))
+        left = ttk.Frame(lower, style="PanelAlt.TFrame", padding=self.spacing.lg)
+        left.grid(row=0, column=0, sticky="nsew", padx=(0, self.spacing.sm))
+        right = ttk.Frame(lower, style="PanelAlt.TFrame", padding=self.spacing.lg)
+        right.grid(row=0, column=1, sticky="nsew")
+        lower.columnconfigure(0, weight=1)
+        lower.columnconfigure(1, weight=1)
+        lower.rowconfigure(0, weight=1)
+
+        ttk.Label(left, text="Package Files", style="Section.TLabel").pack(anchor=W)
+        self.export_artifact_list = ScrolledText(left, height=18)
+        style_scrolled_text(self.export_artifact_list, self.palette, self.type_scale)
+        self.export_artifact_list.pack(fill=BOTH, expand=True, pady=(self.spacing.sm, 0))
+
+        ttk.Label(right, text="Checks And Provenance", style="Section.TLabel").pack(anchor=W)
+        self.export_log = ScrolledText(right, height=18)
+        style_scrolled_text(self.export_log, self.palette, self.type_scale)
+        self.export_log.pack(fill=BOTH, expand=True, pady=(self.spacing.sm, 0))
+
+        artifact_lines = [Path(path).name for path in (latest.get("written_files") or [])] if latest else ["No export artifacts yet."]
+        self._populate_text_widget(self.export_artifact_list, artifact_lines)
+        lines = self._export_log_lines.copy()
+        if latest:
+            lines.extend([f"Provenance: {latest.get('provenance_manifest', '')}"])
+            lines.extend(latest.get("validation_messages") or ["No validation warnings in the latest export."])
+        if not lines:
+            lines = ["No export activity yet."]
+        self._populate_text_widget(self.export_log, lines)
 
     def _render_diagnostics_view(self) -> None:
         payload = self._load_diagnostics_payload()

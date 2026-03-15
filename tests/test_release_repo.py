@@ -30,6 +30,8 @@ def test_public_repo_scaffolding_exists():
         "CODE_OF_CONDUCT.md",
         "CONTRIBUTING.md",
         "SECURITY.md",
+        "docs/developer-setup.md",
+        "docs/product-capabilities.md",
         "docs/privacy-and-data-handling.md",
         "docs/windows-build.md",
         "docs/macos-build.md",
@@ -40,6 +42,10 @@ def test_public_repo_scaffolding_exists():
         "docs/images/github-processing.png",
         "docs/images/github-review.png",
         "docs/images/github-export.png",
+        "docs/images/repo-hero.png",
+        "docs/images/repo-tour.png",
+        "docs/images/repo-review-detail.png",
+        "docs/images/repo-export-detail.png",
         "packaging/windows/assets/app.ico",
         "packaging/macos/assets/app.icns",
         ".github/PULL_REQUEST_TEMPLATE.md",
@@ -65,14 +71,21 @@ def test_readme_positions_truthful_cross_platform_release_story():
     assert "macOS version" in readme
     assert "GPTKnowledgeBuilder-<version>-portable.zip" in readme
     assert "SHA256SUMS.txt" in readme
-    assert "Quick start for Windows users" in readme
-    assert "Quick start for macOS users" in readme
-    assert "render_github_screenshot.py --render-repo-assets" in readme
-    assert "docs/images/github-home.png" in readme
-    assert "docs/images/github-sources.png" in readme
-    assert "docs/images/github-processing.png" in readme
-    assert "docs/images/github-review.png" in readme
-    assert "docs/images/github-export.png" in readme
+    assert "docs/images/repo-hero.png" in readme
+    assert "docs/images/repo-tour.png" in readme
+    assert "docs/images/repo-review-detail.png" in readme
+    assert "docs/images/repo-export-detail.png" in readme
+    assert "docs/developer-setup.md" in readme
+    assert "docs/product-capabilities.md" in readme
+    assert "docs/images/github-home.png" not in readme
+    assert "docs/images/github-sources.png" not in readme
+    assert "docs/images/github-processing.png" not in readme
+    assert "docs/images/github-review.png" not in readme
+    assert "docs/images/github-export.png" not in readme
+    assert "## Quick start for Windows users" not in readme
+    assert "## Quick start for macOS users" not in readme
+    assert "## Advanced CLI" not in readme
+    assert "## Supported inputs" not in readme
     assert "docs/images/hero-banner.svg" not in readme
     assert "docs/images/workspace-preview.svg" not in readme
     assert "docs/images/export-preview.svg" not in readme
@@ -95,6 +108,10 @@ def test_public_png_assets_have_expected_dimensions():
         repo_root / "docs" / "images" / "github-processing.png",
         repo_root / "docs" / "images" / "github-review.png",
         repo_root / "docs" / "images" / "github-export.png",
+        repo_root / "docs" / "images" / "repo-hero.png",
+        repo_root / "docs" / "images" / "repo-tour.png",
+        repo_root / "docs" / "images" / "repo-review-detail.png",
+        repo_root / "docs" / "images" / "repo-export-detail.png",
     ]
     for path in screenshot_paths:
         assert _png_size(path) == (1400, 850), path
@@ -127,12 +144,15 @@ def test_release_process_and_changelog_match_current_repo_state():
     assert "AboveWireless/gpt-knowledge-builder" in release_process
     assert "artifact names plus `SHA256SUMS.txt`" in release_process
     assert "SHA256SUMS.txt" in release_process
+    assert "repo-hero" in release_process
+    assert "repo-tour" in release_process
 
     assert "## [Unreleased]" in changelog
     assert "macOS desktop packaging" in changelog
     assert "GitHub screenshot generation" in changelog
     assert "guided desktop UI" in changelog
     assert "SHA256SUMS.txt" in changelog
+    assert "GitHub landing page" in changelog
 
 
 def test_contributing_and_security_docs_reflect_cross_platform_repo_state():
@@ -160,6 +180,28 @@ def test_pyproject_has_public_release_metadata():
     assert "Issues =" in pyproject
 
 
+def test_support_docs_cover_product_and_developer_flows():
+    repo_root = Path(__file__).resolve().parents[1]
+    developer = (repo_root / "docs" / "developer-setup.md").read_text(encoding="utf-8")
+    capabilities = (repo_root / "docs" / "product-capabilities.md").read_text(encoding="utf-8")
+
+    assert 'python -m pip install -e ".[dev,extractors,ai]"' in developer
+    assert "python -m knowledge_builder" in developer
+    assert "scan-docs --input-dir" in developer
+    assert "render_github_screenshot.py --render-repo-assets" in developer
+    assert "windows-build.md" in developer
+    assert "macos-build.md" in developer
+
+    assert "1. `Pick Folders`" in capabilities
+    assert "2. `Scan Files`" in capabilities
+    assert "3. `Fix Issues`" in capabilities
+    assert "4. `Get GPT Files`" in capabilities
+    assert "knowledge_core" in capabilities
+    assert "reference_facts" in capabilities
+    assert "Optional OpenAI enrichment" not in capabilities
+    assert "AI enrichment is optional." in capabilities
+
+
 def test_repo_editor_and_git_attributes_cover_cross_platform_files():
     repo_root = Path(__file__).resolve().parents[1]
     editorconfig = (repo_root / ".editorconfig").read_text(encoding="utf-8")
@@ -175,6 +217,26 @@ def test_repo_editor_and_git_attributes_cover_cross_platform_files():
     assert "*.sh text eol=lf" in gitattributes
     assert "*.png binary" in gitattributes
     assert "*.icns binary" in gitattributes
+
+
+def test_screenshot_script_covers_raw_and_presentation_assets():
+    repo_root = Path(__file__).resolve().parents[1]
+    script = (repo_root / "scripts" / "render_github_screenshot.py").read_text(encoding="utf-8")
+
+    for name in [
+        "github-home.png",
+        "github-sources.png",
+        "github-processing.png",
+        "github-review.png",
+        "github-export.png",
+        "repo-hero.png",
+        "repo-tour.png",
+        "repo-review-detail.png",
+        "repo-export-detail.png",
+    ]:
+        assert name in script
+    assert "--render-repo-assets" in script
+    assert "SceneSpec" in script
 
 
 def test_github_workflows_cover_ci_and_release_outputs():
