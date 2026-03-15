@@ -17,6 +17,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Refreshed the README, build guides, and release process docs so they match the current Windows and macOS release story.
 - Standardized the public screenshot set around consistent real-product captures for home, sources, processing, review, and export.
 - Reworked the GitHub landing page into a shorter product-first README with dedicated developer and capability docs plus presentation-focused repo assets.
+- Expanded the public docs with a clearer user guide, feature descriptions, and step-by-step usage instructions for the desktop workflow.
 
 ## [0.1.0] - 2026-03-08
 

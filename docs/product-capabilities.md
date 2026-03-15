@@ -31,6 +31,110 @@ The app keeps a project workspace so users can reopen the same corpus, review qu
 | Traceability | Writes provenance sidecars without polluting the upload package |
 | Desktop UX | Keeps the workflow GUI-first while still offering advanced controls and CLI entrypoints |
 
+## Feature-by-feature breakdown
+
+### Guided mode
+
+Guided mode is the default experience.
+
+It keeps the app easier to understand by:
+
+- showing one clear next action on each main screen
+- using plain labels such as `Pick Folders`, `Scan Files`, `Fix Issues`, and `Get GPT Files`
+- hiding denser diagnostics and bulk controls until the user explicitly asks for them
+
+### Folder setup and project saving
+
+The setup flow is designed to feel lightweight for normal users.
+
+Users can:
+
+- choose one or more source folders
+- choose the export folder
+- save the project and reopen it later
+- use a simple setup path without manually managing internal workspace files
+
+This makes it easier to work with real document folders without needing to understand the project internals first.
+
+### Source preview and dependency health
+
+Before the first scan, the app can estimate what the workload looks like.
+
+That includes:
+
+- rough file counts
+- a summary of supported versus unsupported files
+- heavy-file indicators
+- OCR-likely file counts
+- dependency health checks for optional extractors and OCR tooling
+
+This helps users spot likely trouble before they run a full scan.
+
+### Scan and triage
+
+The scan step builds the working corpus and records what needs attention.
+
+It is meant to answer three questions quickly:
+
+- how much content was processed
+- what failed or only partially extracted
+- whether the project is ready for review or export
+
+The beginner view keeps this step focused on the current scan, the result summary, and the next recommended action.
+
+### Review queue and preview tools
+
+The review queue is one of the main product features.
+
+It exists so the final package is curated instead of blindly exported.
+
+The queue can surface:
+
+- extraction failures
+- duplicates
+- taxonomy uncertainty
+- low-confidence OCR
+- low-signal documents
+- AI low-confidence items when enrichment is enabled
+
+The user can then work through each item with preview-first actions such as `Accept`, `Skip`, `Retry`, and `Next`.
+
+### Export, validation, and provenance
+
+Export is more than a single write step.
+
+The app can:
+
+- create the final GPT-ready files
+- show export readiness and next-step guidance
+- run validation checks
+- list package artifacts
+- write provenance sidecars and related manifests outside the upload payload
+
+That keeps the deliverable cleaner while still preserving traceability for the person building the package.
+
+### Beginner path and advanced controls
+
+The product supports two levels of complexity:
+
+- a guided beginner path for fast, low-stress use
+- advanced controls for deeper setup, filtering, retry, diagnostics, and export inspection
+
+This is useful when one person wants a simple workflow but another person on the same team needs more control.
+
+### Persistent workspace
+
+Projects are meant to be reopened.
+
+That allows users to:
+
+- scan in stages
+- continue review later
+- rescan after source changes
+- compare progress across export runs
+
+This is especially useful for larger document sets that are cleaned over time instead of in one sitting.
+
 ## Supported inputs
 
 - PDF
@@ -68,6 +172,8 @@ Project exports can also write provenance sidecars such as:
 - `knowledge_items.jsonl`
 - `provenance_manifest.json`
 - split artifact pages when content grows too large
+
+The final package focuses on the GPT payload, while the sidecars help with auditing and troubleshooting.
 
 ## AI enrichment
 

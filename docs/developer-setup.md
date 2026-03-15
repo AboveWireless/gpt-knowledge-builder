@@ -1,5 +1,7 @@
 # Developer Setup
 
+If you want to learn the app as a normal user first, start with [user-guide.md](user-guide.md).
+
 ## Local install
 
 Core install:

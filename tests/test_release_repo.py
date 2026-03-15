@@ -30,6 +30,7 @@ def test_public_repo_scaffolding_exists():
         "CODE_OF_CONDUCT.md",
         "CONTRIBUTING.md",
         "SECURITY.md",
+        "docs/user-guide.md",
         "docs/developer-setup.md",
         "docs/product-capabilities.md",
         "docs/privacy-and-data-handling.md",
@@ -76,7 +77,13 @@ def test_readme_positions_truthful_cross_platform_release_story():
     assert "docs/images/repo-review-detail.png" in readme
     assert "docs/images/repo-export-detail.png" in readme
     assert "docs/developer-setup.md" in readme
+    assert "docs/user-guide.md" in readme
     assert "docs/product-capabilities.md" in readme
+    assert "## What each step does" in readme
+    assert "## Main features" in readme
+    assert "## How to use the app" in readme
+    assert "Accept" in readme
+    assert "Open GPT Files Folder" in readme
     assert "docs/images/github-home.png" not in readme
     assert "docs/images/github-sources.png" not in readme
     assert "docs/images/github-processing.png" not in readme
@@ -182,9 +189,17 @@ def test_pyproject_has_public_release_metadata():
 
 def test_support_docs_cover_product_and_developer_flows():
     repo_root = Path(__file__).resolve().parents[1]
+    user_guide = (repo_root / "docs" / "user-guide.md").read_text(encoding="utf-8")
     developer = (repo_root / "docs" / "developer-setup.md").read_text(encoding="utf-8")
     capabilities = (repo_root / "docs" / "product-capabilities.md").read_text(encoding="utf-8")
 
+    assert "Pick Folders To Start" in user_guide
+    assert "Open Existing Project" in user_guide
+    assert "`Accept`, `Skip`, `Retry`, and `Next`" in user_guide
+    assert "Check Package" in user_guide
+    assert "Show Advanced Controls" in user_guide
+
+    assert "user-guide.md" in developer
     assert 'python -m pip install -e ".[dev,extractors,ai]"' in developer
     assert "python -m knowledge_builder" in developer
     assert "scan-docs --input-dir" in developer
@@ -196,6 +211,10 @@ def test_support_docs_cover_product_and_developer_flows():
     assert "2. `Scan Files`" in capabilities
     assert "3. `Fix Issues`" in capabilities
     assert "4. `Get GPT Files`" in capabilities
+    assert "Feature-by-feature breakdown" in capabilities
+    assert "Source preview and dependency health" in capabilities
+    assert "Review queue and preview tools" in capabilities
+    assert "Beginner path and advanced controls" in capabilities
     assert "knowledge_core" in capabilities
     assert "reference_facts" in capabilities
     assert "Optional OpenAI enrichment" not in capabilities
